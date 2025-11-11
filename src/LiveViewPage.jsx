@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Select, Switch, Table, Tag, Tooltip, notification, Spin, Empty, Tabs, Space, Typography } from 'antd';
+// --- STEP 1: ADD 'theme' TO THE IMPORT ---
+import { Button, Modal, Form, Input, Select, Switch, Table, Tag, Tooltip, notification, Spin, Empty, Tabs, Space, Typography, theme } from 'antd';
 import { VideoCameraOutlined, UnorderedListOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { getCameras, createCamera, updateCamera, deleteCamera } from './services/cameraService';
 
 const { Option } = Select;
 const { Title } = Typography;
 
-const LiveViewPage = ({ theme }) => {
+const LiveViewPage = ({ theme: themeProp }) => { // Renamed prop to avoid conflict
+  // --- STEP 2: INITIALIZE THE HOOKS ---
+  const { token } = theme.useToken();
+  const [modal, contextHolder] = Modal.useModal();
+
   const [activeTab, setActiveTab] = useState('view');
   const [allCameras, setAllCameras] = useState([]);
   const [liveCameras, setLiveCameras] = useState([]);
@@ -84,8 +89,9 @@ const LiveViewPage = ({ theme }) => {
     }
   };
 
+  // --- STEP 3: UPDATE handleDelete TO USE 'modal.confirm' ---
   const handleDelete = (id, name) => {
-    Modal.confirm({
+    modal.confirm({ // Changed from Modal.confirm
       title: `Delete ${name}?`,
       content: 'Are you sure you want to delete this camera? This action cannot be undone.',
       okText: 'Delete',
@@ -111,6 +117,7 @@ const LiveViewPage = ({ theme }) => {
     });
   };
   
+  // --- STEP 4: UPDATE TOOLTIPS WITH DYNAMIC COLOR ---
   const columns = [
     { 
       title: 'Camera Name', 
@@ -146,14 +153,14 @@ const LiveViewPage = ({ theme }) => {
       key: 'actions', 
       render: (_, record) => (
         <Space>
-          <Tooltip title="Edit">
+          <Tooltip title="Edit" overlayInnerStyle={{ color: token.colorText }}>
             <Button 
               icon={<EditOutlined />} 
               size="small"
               onClick={() => openModal(record)} 
             />
           </Tooltip>
-          <Tooltip title="Delete">
+          <Tooltip title="Delete" overlayInnerStyle={{ color: token.colorText }}>
             <Button 
               icon={<DeleteOutlined />} 
               size="small"
@@ -166,15 +173,12 @@ const LiveViewPage = ({ theme }) => {
     },
   ];
 
+  // (The rest of the file is unchanged, but included for completeness)
+
   const renderLiveView = () => {
     if (loading) {
       return (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: 400 
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
           <Spin size="large" />
         </div>
       );
@@ -195,15 +199,8 @@ const LiveViewPage = ({ theme }) => {
 
     return (
       <div style={{ display: 'flex', gap: 16, minHeight: 'calc(100vh - 280px)' }}>
-        {/* Main Camera View */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ 
-            position: 'relative', 
-            borderRadius: 8, 
-            overflow: 'hidden', 
-            backgroundColor: '#000',
-            flex: 1
-          }}>
+          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', flex: 1 }}>
             <iframe 
               key={selectedCam.id} 
               src={selectedCam.webrtc_url} 
@@ -222,64 +219,27 @@ const LiveViewPage = ({ theme }) => {
           </div>
         </div>
 
-        {/* Thumbnail Grid */}
         {otherCameras.length > 0 && (
-          <div style={{ 
-            width: 320, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: 12,
-            overflowY: 'auto',
-            maxHeight: 'calc(100vh - 280px)'
-          }}>
+          <div style={{ width: 320, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
             {otherCameras.map((camera) => {
               const actualIndex = liveCameras.findIndex(c => c.id === camera.id);
               return (
                 <div 
                   key={camera.id} 
                   onClick={() => setSelectedStreamIndex(actualIndex)} 
-                  style={{ 
-                    borderRadius: 8, 
-                    overflow: 'hidden', 
-                    cursor: 'pointer',
-                    transition: 'all 0.3s',
-                    border: `2px solid ${theme === 'light' ? '#e5e7eb' : '#374151'}`,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = theme === 'light' ? '#6366f1' : '#818cf8';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = theme === 'light' ? '#e5e7eb' : '#374151';
-                  }}
+                  style={{ borderRadius: 8, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.3s', border: `2px solid ${themeProp === 'light' ? '#e5e7eb' : '#374151'}` }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = themeProp === 'light' ? '#6366f1' : '#818cf8'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = themeProp === 'light' ? '#e5e7eb' : '#374151'; }}
                 >
-                  <div style={{ 
-                    position: 'relative', 
-                    backgroundColor: '#000',
-                    aspectRatio: '16/9'
-                  }}>
+                  <div style={{ position: 'relative', backgroundColor: '#000', aspectRatio: '16/9' }}>
                     <iframe 
                       src={camera.webrtc_url} 
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        border: 'none',
-                        pointerEvents: 'none'
-                      }}
+                      style={{ width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
                       title={`Preview of ${camera.camera_name}`} 
                     />
                   </div>
-                  <div style={{ 
-                    padding: 12,
-                    backgroundColor: theme === 'light' ? '#f9fafb' : '#1f2937'
-                  }}>
-                    <p style={{ 
-                      fontWeight: 600, 
-                      fontSize: 14, 
-                      margin: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
+                  <div style={{ padding: 12, backgroundColor: themeProp === 'light' ? '#f9fafb' : '#1f2937' }}>
+                    <p style={{ fontWeight: 600, fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {camera.camera_name}
                     </p>
                   </div>
@@ -297,18 +257,10 @@ const LiveViewPage = ({ theme }) => {
       <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
         <Title level={4} style={{ margin: 0 }}>All Registered Cameras</Title>
         <Space>
-          <Button 
-            icon={<ReloadOutlined spin={loading} />} 
-            onClick={fetchData} 
-            disabled={loading}
-          >
+          <Button icon={<ReloadOutlined spin={loading} />} onClick={fetchData} disabled={loading}>
             Refresh
           </Button>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={() => openModal()}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
             Add Camera
           </Button>
         </Space>
@@ -318,50 +270,27 @@ const LiveViewPage = ({ theme }) => {
         dataSource={allCameras} 
         rowKey="id" 
         loading={loading}
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: true,
-        }}
+        pagination={{ pageSize: 10, showSizeChanger: true }}
       />
     </div>
   );
 
   const tabItems = [
-    {
-      key: 'view',
-      label: (
-        <span>
-          <VideoCameraOutlined />
-          Live View
-        </span>
-      ),
-      children: renderLiveView(),
-    },
-    {
-      key: 'manage',
-      label: (
-        <span>
-          <UnorderedListOutlined />
-          Camera List
-        </span>
-      ),
-      children: renderCameraList(),
-    },
+    { key: 'view', label: <span><VideoCameraOutlined />Live View</span>, children: renderLiveView() },
+    { key: 'manage', label: <span><UnorderedListOutlined />Camera List</span>, children: renderCameraList() },
   ];
   
   return (
     <div>
+      {/* --- STEP 5: RENDER THE CONTEXT HOLDER --- */}
+      {contextHolder}
+
       <Title level={3} style={{ marginBottom: 24 }}>
         Camera System
       </Title>
       
-      <Tabs 
-        activeKey={activeTab} 
-        onChange={setActiveTab} 
-        items={tabItems}
-      />
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 
-      {/* Camera Modal */}
       <Modal 
         title={editingCamera ? 'Edit Camera' : 'Add New Camera'} 
         open={isModalOpen} 
@@ -369,58 +298,30 @@ const LiveViewPage = ({ theme }) => {
         footer={null}
       >
         <Spin spinning={loading}>
-          <Form 
-            form={form} 
-            layout="vertical" 
-            onFinish={handleFormSubmit} 
-            style={{ marginTop: 24 }}
-          >
-            <Form.Item 
-              name="camera_name" 
-              label="Camera Name" 
-              rules={[{ required: true, message: 'Please enter camera name' }]}
-            >
+          <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+            <Form.Item name="camera_name" label="Camera Name" rules={[{ required: true, message: 'Please enter camera name' }]}>
               <Input placeholder="e.g., Entrance Cam"/>
             </Form.Item>
             <Form.Item name="model_number" label="Model Number">
               <Input placeholder="e.g., Hikvision DS-2CD1023"/>
             </Form.Item>
             <Form.Item name="description" label="Description">
-              <Input.TextArea 
-                rows={3} 
-                placeholder="Describe the camera's location..."
-              />
+              <Input.TextArea rows={3} placeholder="Describe the camera's location..."/>
             </Form.Item>
-            <Form.Item 
-              name="protocol" 
-              label="Protocol" 
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="protocol" label="Protocol" rules={[{ required: true }]}>
               <Select>
                 <Option value="rtsp">RTSP</Option>
                 <Option value="http">HTTP</Option>
                 <Option value="https">HTTPS</Option>
               </Select>
             </Form.Item>
-            <Form.Item 
-              name="stream_path" 
-              label="Stream Path" 
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="stream_path" label="Stream Path" rules={[{ required: true }]}>
               <Input placeholder="e.g., /stream1"/>
             </Form.Item>
-            <Form.Item 
-              name="url" 
-              label="Camera URL" 
-              rules={[{ required: true }]}
-            >
+            <Form.Item name="url" label="Camera URL" rules={[{ required: true }]}>
               <Input placeholder="rtsp://user:pass@192.168.1.108:554/"/>
             </Form.Item>
-            <Form.Item 
-              name="is_active" 
-              label="Activate Camera" 
-              valuePropName="checked"
-            >
+            <Form.Item name="is_active" label="Activate Camera" valuePropName="checked">
               <Switch />
             </Form.Item>
             <div style={{ textAlign: 'right' }}>

@@ -21,10 +21,10 @@ jobs:
             set -e
 
             PROJECTS_DIR="/root/projects"
-            PROJECT_NAME="kiosk_frontend"
+            PROJECT_NAME="kiosk-frontend"
             PROJECT_PATH="$PROJECTS_DIR/$PROJECT_NAME"
-            IMAGE_NAME="kiosk_frontend"
-            CONTAINER_NAME="kiosk_frontend"
+            IMAGE_NAME="kiosk-frontend"
+            CONTAINER_NAME="kiosk-frontend"
 
             echo "===== 📂 Ensuring base directory exists ====="
             mkdir -p "$PROJECTS_DIR"
@@ -37,7 +37,7 @@ jobs:
               git reset --hard origin/main
             else
               echo "===== 📥 Cloning repo for the first time ====="
-              git clone https://github.com/MyAccess2021/kiosk_frontend.git "$PROJECT_PATH"
+              git clone https://github.com/MyAccess2021/kiosk-frontend.git "$PROJECT_PATH"
               cd "$PROJECT_PATH"
             fi
 

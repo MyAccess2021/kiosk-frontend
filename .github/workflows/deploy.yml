@@ -1,9 +1,9 @@
-name: Deploy kiosk_frontend to Server
+name: 🚀 Deploy kiosk_frontend to Server
 
 on:
   push:
     branches:
-      - main  # deploy whenever main branch is updated
+      - main  # Trigger deploy whenever main branch is updated
 
 jobs:
   deploy:
@@ -16,6 +16,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASS }}
+          port: ${{ secrets.SERVER_PORT }}
           script: |
             set -e
 
@@ -32,8 +33,8 @@ jobs:
             if [ -d "$PROJECT_PATH/.git" ]; then
               echo "===== 🔄 Repo exists, pulling latest changes ====="
               cd "$PROJECT_PATH"
-              git reset --hard
-              git pull origin main
+              git fetch origin main
+              git reset --hard origin/main
             else
               echo "===== 📥 Cloning repo for the first time ====="
               git clone https://github.com/MyAccess2021/kiosk_frontend.git "$PROJECT_PATH"
@@ -41,12 +42,11 @@ jobs:
             fi
 
             echo "===== 🧹 Removing old container and image ====="
-            docker rm -f "$CONTAINER_NAME" || true
-            docker rmi -f "$IMAGE_NAME" || true
+            docker ps -q --filter "name=$CONTAINER_NAME" | grep -q . && docker rm -f "$CONTAINER_NAME" || echo "No running container."
+            docker images -q "$IMAGE_NAME" | grep -q . && docker rmi -f "$IMAGE_NAME" || echo "No old image."
 
             echo "===== 🛠️ Building new Docker image ====="
-            cd "$PROJECT_PATH"
-            docker build -t "$IMAGE_NAME" .
+            docker build -t "$IMAGE_NAME" "$PROJECT_PATH"
 
             echo "===== 🏃 Running container on port 87 ====="
             docker run -d --name "$CONTAINER_NAME" -p 87:80 "$IMAGE_NAME"

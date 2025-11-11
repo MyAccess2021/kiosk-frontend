@@ -1,0 +1,177 @@
+import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { 
+  HomeOutlined, 
+  EyeOutlined, 
+  HddOutlined, 
+  ThunderboltOutlined, 
+  SettingOutlined, 
+  LogoutOutlined
+} from '@ant-design/icons';
+import { buttonStyles } from './utils/buttonStyles';
+import { themeConfig } from './utils/themeConfig';
+
+const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const colors = themeConfig[theme];
+  const menuBtn = buttonStyles.menu[theme];
+  const logoutBtn = buttonStyles.logout[theme];
+
+  const menuItems = [
+    { key: '/dashboard/home', icon: <HomeOutlined />, label: 'Home' },
+    { key: '/dashboard/live-view', icon: <EyeOutlined />, label: 'Live View' },
+    { key: '/dashboard/devices', icon: <HddOutlined />, label: 'Devices' },
+    { key: '/dashboard/activity-log', icon: <ThunderboltOutlined />, label: 'Activity Log' },
+    { key: '/dashboard/config', icon: <SettingOutlined />, label: 'Config' },
+  ];
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login');
+  };
+
+  const handleMenuClick = (path) => {
+    navigate(path);
+    toggleSidebar();
+  };
+
+  return (
+    <>
+      {/* Floating Sidebar */}
+      <div
+        style={{
+          position: 'fixed',
+          left: isOpen ? '20px' : '-100px',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          transition: 'left 0.3s ease-out',
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? 'auto' : 'none'
+        }}
+      >
+        {/* Menu Items with Waterfall Animation */}
+        {menuItems.map((item, index) => (
+          <div 
+            key={item.key}
+            style={{
+              animation: isOpen ? `waterfallIn 0.4s ease-out ${index * 0.08}s both` : 'none',
+              opacity: isOpen ? 1 : 0
+            }}
+          >
+            <div
+              onClick={() => handleMenuClick(item.key)}
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                backgroundColor: location.pathname === item.key 
+                  ? menuBtn.activeBackgroundColor
+                  : menuBtn.backgroundColor,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: buttonStyles.common.transition,
+                boxShadow: location.pathname === item.key 
+                  ? '0 4px 16px rgba(167, 139, 167, 0.4)' 
+                  : colors.shadows.medium,
+                backdropFilter: 'blur(10px)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.backgroundColor = menuBtn.hoverBackgroundColor;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.backgroundColor = location.pathname === item.key 
+                  ? menuBtn.activeBackgroundColor
+                  : menuBtn.backgroundColor;
+              }}
+            >
+              {React.cloneElement(item.icon, { 
+                style: { fontSize: '22px', color: menuBtn.color } 
+              })}
+            </div>
+            <div style={{
+              marginTop: '6px',
+              textAlign: 'center',
+              fontSize: '11px',
+              fontWeight: '500',
+              color: colors.text.primary,
+              textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none'
+            }}>
+              {item.label}
+            </div>
+          </div>
+        ))}
+
+        {/* Logout Button with Waterfall Animation */}
+        <div 
+          style={{ 
+            marginTop: '8px',
+            animation: isOpen ? `waterfallIn 0.4s ease-out ${menuItems.length * 0.08}s both` : 'none',
+            opacity: isOpen ? 1 : 0
+          }}
+        >
+          <div
+            onClick={handleLogout}
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              backgroundColor: logoutBtn.backgroundColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: buttonStyles.common.transition,
+              boxShadow: colors.shadows.medium,
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.backgroundColor = logoutBtn.hoverBackgroundColor;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.backgroundColor = logoutBtn.backgroundColor;
+            }}
+          >
+            <LogoutOutlined style={{ fontSize: '22px', color: logoutBtn.color }} />
+          </div>
+          <div style={{
+            marginTop: '6px',
+            textAlign: 'center',
+            fontSize: '11px',
+            fontWeight: '500',
+            color: colors.text.primary,
+            textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none'
+          }}>
+            Logout
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes waterfallIn {
+            from { 
+              opacity: 0;
+              transform: translateX(-30px) translateY(-10px);
+            }
+            to { 
+              opacity: 1;
+              transform: translateX(0) translateY(0);
+            }
+          }
+        `}
+        </style>
+      </div>
+    </>
+  );
+};
+
+export default Sidebar;

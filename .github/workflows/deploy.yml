@@ -1,0 +1,54 @@
+name: Deploy kiosk_frontend to Server
+
+on:
+  push:
+    branches:
+      - main  # deploy whenever main branch is updated
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🚀 Deploy to Remote Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASS }}
+          script: |
+            set -e
+
+            PROJECTS_DIR="/root/projects"
+            PROJECT_NAME="kiosk_frontend"
+            PROJECT_PATH="$PROJECTS_DIR/$PROJECT_NAME"
+            IMAGE_NAME="kiosk_frontend"
+            CONTAINER_NAME="kiosk_frontend"
+
+            echo "===== 📂 Ensuring base directory exists ====="
+            mkdir -p "$PROJECTS_DIR"
+            cd "$PROJECTS_DIR"
+
+            if [ -d "$PROJECT_PATH/.git" ]; then
+              echo "===== 🔄 Repo exists, pulling latest changes ====="
+              cd "$PROJECT_PATH"
+              git reset --hard
+              git pull origin main
+            else
+              echo "===== 📥 Cloning repo for the first time ====="
+              git clone https://github.com/MyAccess2021/kiosk_frontend.git "$PROJECT_PATH"
+              cd "$PROJECT_PATH"
+            fi
+
+            echo "===== 🧹 Removing old container and image ====="
+            docker rm -f "$CONTAINER_NAME" || true
+            docker rmi -f "$IMAGE_NAME" || true
+
+            echo "===== 🛠️ Building new Docker image ====="
+            cd "$PROJECT_PATH"
+            docker build -t "$IMAGE_NAME" .
+
+            echo "===== 🏃 Running container on port 87 ====="
+            docker run -d --name "$CONTAINER_NAME" -p 87:80 "$IMAGE_NAME"
+
+            echo "===== ✅ Deployment Completed Successfully ====="

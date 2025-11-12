@@ -19,6 +19,7 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [showDeletedUsers, setShowDeletedUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userForm] = Form.useForm();
+   const [activeUserTooltip, setActiveUserTooltip] = useState(null);
 
   // Roles state
   const [roles, setRoles] = useState([]);
@@ -26,7 +27,7 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [isRoleModalOpen, setRoleModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [roleForm] = Form.useForm();
-
+const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
   const roleColors = {
     Administrator: 'purple',
     Manager: 'blue',
@@ -63,6 +64,7 @@ const ConfigPage = ({ theme: themeProp }) => {
 
   // User Management
   const openUserModal = (user = null) => {
+    setActiveUserTooltip(null); // Hide any active user tooltips
     if (user) {
       setEditingUser(user);
       userForm.setFieldsValue({
@@ -75,7 +77,6 @@ const ConfigPage = ({ theme: themeProp }) => {
     }
     setUserModalOpen(true);
   };
-
   const handleUserSubmit = async (values) => {
     setLoading(true);
     try {
@@ -145,7 +146,7 @@ const ConfigPage = ({ theme: themeProp }) => {
     });
   };
 
-  const userColumns = [
+ const userColumns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Email', dataIndex: 'email', key: 'email' },
     {
@@ -188,6 +189,8 @@ const ConfigPage = ({ theme: themeProp }) => {
           <Tooltip
             title="Edit"
             overlayInnerStyle={{ color: token.colorText }}
+            open={activeUserTooltip === `edit-${r.id}`}
+            onOpenChange={(visible) => setActiveUserTooltip(visible ? `edit-${r.id}` : null)}
           >
             <Button icon={<EditOutlined />} size="small" onClick={() => openUserModal(r)} />
           </Tooltip>
@@ -196,14 +199,24 @@ const ConfigPage = ({ theme: themeProp }) => {
             ? <Tooltip
               title="Restore"
               overlayInnerStyle={{ color: token.colorText }}
+              open={activeUserTooltip === `restore-${r.id}`}
+              onOpenChange={(visible) => setActiveUserTooltip(visible ? `restore-${r.id}` : null)}
             >
-              <Button icon={<CheckOutlined />} size="small" onClick={() => handleUserRestore(r.id)} />
+              <Button icon={<CheckOutlined />} size="small" onClick={() => {
+                setActiveUserTooltip(null);
+                handleUserRestore(r.id);
+              }} />
             </Tooltip>
             : <Tooltip
               title="Deactivate"
               overlayInnerStyle={{ color: token.colorText }}
+              open={activeUserTooltip === `deactivate-${r.id}`}
+              onOpenChange={(visible) => setActiveUserTooltip(visible ? `deactivate-${r.id}` : null)}
             >
-              <Button icon={<DeleteOutlined />} size="small" danger onClick={() => handleUserDelete(r.id)} />
+              <Button icon={<DeleteOutlined />} size="small" danger onClick={() => {
+                setActiveUserTooltip(null);
+                handleUserDelete(r.id);
+              }} />
             </Tooltip>
           }
         </Space>
@@ -229,7 +242,8 @@ const ConfigPage = ({ theme: themeProp }) => {
   );
 
   // Role Management
-  const openRoleModal = (role = null) => {
+   const openRoleModal = (role = null) => {
+    setActiveRoleTooltip(null); // Hide any active role tooltips
     if (role) {
       setEditingRole(role);
       roleForm.setFieldsValue({
@@ -265,7 +279,7 @@ const ConfigPage = ({ theme: themeProp }) => {
     }
   };
 
-  const roleColumns = [
+const roleColumns = [
     { title: 'Role Name', dataIndex: 'name', key: 'name' },
     { title: 'Description', dataIndex: 'description', key: 'description' },
     {
@@ -296,6 +310,8 @@ const ConfigPage = ({ theme: themeProp }) => {
         <Tooltip
           title="Edit"
           overlayInnerStyle={{ color: token.colorText }}
+          open={activeRoleTooltip === r.id}
+          onOpenChange={(visible) => setActiveRoleTooltip(visible ? r.id : null)}
         >
           <Button
             icon={<EditOutlined />}

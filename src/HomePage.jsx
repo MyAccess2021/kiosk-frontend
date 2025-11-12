@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Card, Table, Tag, Row, Col, Button, Progress, Badge, Space, Tooltip } from 'antd';
-import { 
-  HddOutlined, 
-  WifiOutlined, 
-  DisconnectOutlined, 
+import {
+  HddOutlined,
+  WifiOutlined,
+  DisconnectOutlined,
   WarningOutlined,
   RiseOutlined,
   FallOutlined,
@@ -17,7 +17,6 @@ import {
   ExclamationCircleOutlined,
   ApiOutlined,
   SafetyOutlined,
-  UserOutlined,
   BellOutlined
 } from '@ant-design/icons';
 import { buttonStyles, getButtonStyle } from './utils/buttonStyles';
@@ -47,11 +46,11 @@ const StyledButton = ({ type = 'primary', theme, children, icon, onClick, size =
 
 const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
   const isDark = theme === 'dark';
-  
+
   return (
-    <Card 
-      bordered={false} 
-      style={{ 
+    <Card
+      bordered={false}
+      style={{
         boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
         background: isDark ? '#1f2937' : '#ffffff',
         borderRadius: '12px',
@@ -63,8 +62,8 @@ const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ 
-            fontSize: '14px', 
+          <div style={{
+            fontSize: '14px',
             color: isDark ? '#9ca3af' : '#6b7280',
             marginBottom: '8px',
             fontWeight: '500',
@@ -73,8 +72,8 @@ const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
           }}>
             {title}
           </div>
-          <div style={{ 
-            fontSize: '36px', 
+          <div style={{
+            fontSize: '36px',
             fontWeight: '700',
             color: isDark ? '#f3f4f6' : '#111827',
             marginBottom: '8px',
@@ -89,8 +88,8 @@ const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
               ) : (
                 <FallOutlined style={{ color: '#ef4444', fontSize: '16px' }} />
               )}
-              <span style={{ 
-                fontSize: '14px', 
+              <span style={{
+                fontSize: '14px',
                 color: trend === 'up' ? '#10b981' : '#ef4444',
                 fontWeight: '600'
               }}>
@@ -102,8 +101,8 @@ const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
             </div>
           )}
         </div>
-        <div style={{ 
-          fontSize: 42, 
+        <div style={{
+          fontSize: 42,
           width: '80px',
           height: '80px',
           display: 'flex',
@@ -130,13 +129,13 @@ const HomePage = ({ theme = 'light' }) => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 1500);
   };
-  
+
   const activityColumns = [
-    { 
-      title: 'Time', 
-      dataIndex: 'time', 
+    {
+      title: 'Time',
+      dataIndex: 'time',
       key: 'time',
-      width: '12%',
+      width: 120,
       render: (time) => (
         <Space>
           <ClockCircleOutlined style={{ color: isDark ? '#818cf8' : '#6366f1' }} />
@@ -144,11 +143,10 @@ const HomePage = ({ theme = 'light' }) => {
         </Space>
       )
     },
-    { 
-      title: 'Device/User', 
-      dataIndex: 'device', 
+    {
+      title: 'Device/User',
+      dataIndex: 'device',
       key: 'device',
-      width: '28%',
       render: (device, record) => (
         <div>
           <div style={{ fontWeight: 600, color: isDark ? '#f3f4f6' : '#111827' }}>{device}</div>
@@ -158,22 +156,22 @@ const HomePage = ({ theme = 'light' }) => {
         </div>
       )
     },
-    { 
-      title: 'Event', 
-      dataIndex: 'event', 
+    {
+      title: 'Event',
+      dataIndex: 'event',
       key: 'event',
-      width: '25%',
+      width: 180,
       render: (event, record) => (
-        <Tag 
+        <Tag
           icon={
-            record.severity === 'high' ? <ExclamationCircleOutlined /> : 
-            record.severity === 'success' ? <CheckCircleOutlined /> : 
-            record.severity === 'warning' ? <WarningOutlined /> : null
+            record.severity === 'high' ? <ExclamationCircleOutlined /> :
+              record.severity === 'success' ? <CheckCircleOutlined /> :
+                record.severity === 'warning' ? <WarningOutlined /> : null
           }
           color={
-            record.severity === 'high' ? 'error' : 
-            record.severity === 'warning' ? 'warning' : 
-            record.severity === 'success' ? 'success' : 'default'
+            record.severity === 'high' ? 'error' :
+              record.severity === 'warning' ? 'warning' :
+                record.severity === 'success' ? 'success' : 'default'
           }
           style={{ fontSize: '13px', padding: '4px 12px' }}
         >
@@ -181,37 +179,37 @@ const HomePage = ({ theme = 'light' }) => {
         </Tag>
       )
     },
-    { 
-      title: 'Status', 
-      dataIndex: 'status', 
+    {
+      title: 'Status',
+      dataIndex: 'status',
       key: 'status',
-      width: '15%',
+      width: 120,
       render: (status) => (
-        <Badge 
-          status={status === 'resolved' ? 'success' : status === 'pending' ? 'processing' : 'default'} 
-          text={status.charAt(0).toUpperCase() + status.slice(1)} 
+        <Badge
+          status={status === 'resolved' ? 'success' : status === 'pending' ? 'processing' : 'default'}
+          text={status.charAt(0).toUpperCase() + status.slice(1)}
         />
       )
     },
     {
       title: 'Action',
       key: 'action',
-      width: '20%',
+      width: 150,
       render: (_, record) => (
         <Space size="small">
-          <StyledButton 
-            type="icon" 
-            theme={theme} 
-            icon={<EyeOutlined />} 
+          <StyledButton
+            type="icon"
+            theme={theme}
+            icon={<EyeOutlined />}
             size="small"
           >
             View
           </StyledButton>
           {record.status === 'pending' && (
-            <StyledButton 
-              type="success" 
-              theme={theme} 
-              icon={<CheckCircleOutlined />} 
+            <StyledButton
+              type="success"
+              theme={theme}
+              icon={<CheckCircleOutlined />}
               size="small"
             >
               Resolve
@@ -221,70 +219,69 @@ const HomePage = ({ theme = 'light' }) => {
       ),
     },
   ];
-  
+
   const activityData = [
-    { 
-      key: '1', 
-      time: '10:30 AM', 
-      device: 'Entrance Cam #1', 
+    {
+      key: '1',
+      time: '10:30 AM',
+      device: 'Entrance Cam #1',
       location: 'Building A - Main Entrance',
-      event: 'Motion Detected', 
+      event: 'Motion Detected',
       severity: 'default',
       status: 'resolved'
     },
-    { 
-      key: '2', 
-      time: '10:28 AM', 
-      device: 'Kiosk #3', 
+    {
+      key: '2',
+      time: '10:28 AM',
+      device: 'Kiosk #3',
       location: 'Floor 2 - West Wing',
-      event: 'Device Offline', 
+      event: 'Device Offline',
       severity: 'high',
       status: 'pending'
     },
-    { 
-      key: '3', 
-      time: '10:25 AM', 
-      device: 'Sarah Johnson', 
+    {
+      key: '3',
+      time: '10:25 AM',
+      device: 'Sarah Johnson',
       location: 'IT Department',
-      event: 'User Logged In', 
+      event: 'User Logged In',
       severity: 'success',
       status: 'resolved'
     },
-    { 
-      key: '4', 
-      time: '10:22 AM', 
-      device: 'Lobby Kiosk', 
+    {
+      key: '4',
+      time: '10:22 AM',
+      device: 'Lobby Kiosk',
       location: 'Building A - Lobby',
-      event: 'Payment Success', 
+      event: 'Payment Success',
       severity: 'success',
       status: 'resolved'
     },
-    { 
-      key: '5', 
-      time: '10:18 AM', 
-      device: 'Security System', 
+    {
+      key: '5',
+      time: '10:18 AM',
+      device: 'Security System',
       location: 'Parking Lot',
-      event: 'Access Denied', 
+      event: 'Access Denied',
       severity: 'warning',
       status: 'pending'
     },
-    { 
-      key: '6', 
-      time: '10:15 AM', 
-      device: 'Server Room Sensor', 
+    {
+      key: '6',
+      time: '10:15 AM',
+      device: 'Server Room Sensor',
       location: 'Data Center',
-      event: 'Temperature Normal', 
+      event: 'Temperature Normal',
       severity: 'success',
       status: 'resolved'
     },
   ];
 
   const deviceStatusColumns = [
-    { 
-      title: 'Device Name', 
-      dataIndex: 'name', 
+    {
+      title: 'Device Name',
+      dataIndex: 'name',
       key: 'name',
-      width: '35%',
       render: (name, record) => (
         <div>
           <div style={{ fontWeight: 600, color: isDark ? '#f3f4f6' : '#111827' }}>{name}</div>
@@ -294,14 +291,14 @@ const HomePage = ({ theme = 'light' }) => {
         </div>
       )
     },
-    { 
-      title: 'Status', 
-      dataIndex: 'status', 
+    {
+      title: 'Status',
+      dataIndex: 'status',
       key: 'status',
-      width: '20%',
+      width: 120,
       render: (status) => (
-        <Tag 
-          icon={status === 'Online' ? <WifiOutlined /> : <DisconnectOutlined />} 
+        <Tag
+          icon={status === 'Online' ? <WifiOutlined /> : <DisconnectOutlined />}
           color={status === 'Online' ? 'success' : 'error'}
           style={{ fontSize: '13px', padding: '4px 12px' }}
         >
@@ -309,18 +306,19 @@ const HomePage = ({ theme = 'light' }) => {
         </Tag>
       )
     },
-    { 
-      title: 'Health', 
-      dataIndex: 'health', 
+    {
+      title: 'Health',
+      dataIndex: 'health',
       key: 'health',
-      width: '25%',
+      width: 120,
       render: (health) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Progress 
-            percent={health} 
-            size="small" 
+          <Progress
+            percent={health}
+            size="small"
             strokeColor={health > 80 ? '#10b981' : health > 50 ? '#f59e0b' : '#ef4444'}
             style={{ flex: 1, marginBottom: 0 }}
+            showInfo={false}
           />
           <span style={{ fontSize: '13px', fontWeight: 500 }}>{health}%</span>
         </div>
@@ -329,22 +327,22 @@ const HomePage = ({ theme = 'light' }) => {
     {
       title: 'Action',
       key: 'action',
-      width: '20%',
-      render: (_, record) => (
+      width: 120,
+      render: () => (
         <Space size="small">
           <Tooltip title="View Details">
-            <StyledButton 
-              type="icon" 
-              theme={theme} 
-              icon={<EyeOutlined />} 
+            <StyledButton
+              type="icon"
+              theme={theme}
+              icon={<EyeOutlined />}
               size="small"
             />
           </Tooltip>
           <Tooltip title="Settings">
-            <StyledButton 
-              type="secondary" 
-              theme={theme} 
-              icon={<SettingOutlined />} 
+            <StyledButton
+              type="secondary"
+              theme={theme}
+              icon={<SettingOutlined />}
               size="small"
             />
           </Tooltip>
@@ -377,7 +375,7 @@ const HomePage = ({ theme = 'light' }) => {
   return (
     <div style={{ padding: '0' }}>
       {/* Header Section */}
-      <div style={{ 
+      <div style={{
         marginBottom: 32,
         display: 'flex',
         justifyContent: 'space-between',
@@ -386,15 +384,15 @@ const HomePage = ({ theme = 'light' }) => {
         gap: '16px'
       }}>
         <div>
-          <h1 style={{ 
-            fontSize: '32px', 
+          <h1 style={{
+            fontSize: '32px',
             fontWeight: '700',
             margin: 0,
             color: isDark ? '#f3f4f6' : '#111827'
           }}>
             Welcome back, {user?.name || 'User'}!
           </h1>
-          <p style={{ 
+          <p style={{
             fontSize: '16px',
             color: isDark ? '#9ca3af' : '#6b7280',
             margin: '8px 0 0 0'
@@ -402,17 +400,17 @@ const HomePage = ({ theme = 'light' }) => {
             {user?.role} • Last login: Today at 9:15 AM
           </p>
         </div>
-        <Space size="middle">
-          <StyledButton 
-            type="secondary" 
-            theme={theme} 
+        <Space size="middle" wrap>
+          <StyledButton
+            type="secondary"
+            theme={theme}
             icon={<BellOutlined />}
           >
             Notifications
           </StyledButton>
-          <StyledButton 
-            type="primary" 
-            theme={theme} 
+          <StyledButton
+            type="primary"
+            theme={theme}
             icon={refreshing ? <SyncOutlined spin /> : <ReloadOutlined />}
             onClick={handleRefresh}
           >
@@ -420,14 +418,14 @@ const HomePage = ({ theme = 'light' }) => {
           </StyledButton>
         </Space>
       </div>
-      
+
       {/* Statistics Cards */}
       <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard 
-            title="Total Devices" 
-            value="150" 
-            icon={<HddOutlined />} 
+          <StatCard
+            title="Total Devices"
+            value="150"
+            icon={<HddOutlined />}
             color="#3b82f6"
             theme={theme}
             trend="up"
@@ -435,10 +433,10 @@ const HomePage = ({ theme = 'light' }) => {
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard 
-            title="Online" 
-            value="142" 
-            icon={<WifiOutlined />} 
+          <StatCard
+            title="Online"
+            value="142"
+            icon={<WifiOutlined />}
             color="#10b981"
             theme={theme}
             trend="up"
@@ -446,10 +444,10 @@ const HomePage = ({ theme = 'light' }) => {
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard 
-            title="Offline" 
-            value="8" 
-            icon={<DisconnectOutlined />} 
+          <StatCard
+            title="Offline"
+            value="8"
+            icon={<DisconnectOutlined />}
             color="#ef4444"
             theme={theme}
             trend="down"
@@ -457,10 +455,10 @@ const HomePage = ({ theme = 'light' }) => {
           />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard 
-            title="Active Alerts" 
-            value="3" 
-            icon={<WarningOutlined />} 
+          <StatCard
+            title="Active Alerts"
+            value="3"
+            icon={<WarningOutlined />}
             color="#f59e0b"
             theme={theme}
             trend="down"
@@ -469,18 +467,18 @@ const HomePage = ({ theme = 'light' }) => {
         </Col>
       </Row>
 
-      {/* System Health Overview */}
+      {/* System Health Overview & Alerts */}
       <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
         <Col xs={24} lg={8}>
-          <Card 
+          <Card
             title={
               <span style={{ fontSize: '18px', fontWeight: '600' }}>
                 <SafetyOutlined style={{ marginRight: '8px', color: isDark ? '#818cf8' : '#6366f1' }} />
                 System Health
               </span>
             }
-            bordered={false} 
-            style={{ 
+            bordered={false}
+            style={{
               boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
               background: isDark ? '#1f2937' : '#ffffff',
               borderRadius: '12px',
@@ -494,9 +492,9 @@ const HomePage = ({ theme = 'light' }) => {
           >
             {systemHealthData.map((item, index) => (
               <div key={index} style={{ marginBottom: index < systemHealthData.length - 1 ? '20px' : 0 }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   marginBottom: '8px',
                   fontSize: '14px',
                   fontWeight: '500'
@@ -504,8 +502,8 @@ const HomePage = ({ theme = 'light' }) => {
                   <span>{item.label}</span>
                   <span style={{ color: item.color }}>{item.value}%</span>
                 </div>
-                <Progress 
-                  percent={item.value} 
+                <Progress
+                  percent={item.value}
                   strokeColor={item.color}
                   showInfo={false}
                   strokeWidth={8}
@@ -515,17 +513,16 @@ const HomePage = ({ theme = 'light' }) => {
           </Card>
         </Col>
 
-        {/* Active Alerts */}
         <Col xs={24} lg={16}>
-          <Card 
+          <Card
             title={
               <span style={{ fontSize: '18px', fontWeight: '600' }}>
                 <WarningOutlined style={{ marginRight: '8px', color: '#f59e0b' }} />
                 Active Alerts
               </span>
             }
-            bordered={false} 
-            style={{ 
+            bordered={false}
+            style={{
               boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
               background: isDark ? '#1f2937' : '#ffffff',
               borderRadius: '12px',
@@ -538,7 +535,7 @@ const HomePage = ({ theme = 'light' }) => {
             }
           >
             {alertsData.map((alert, index) => (
-              <div 
+              <div
                 key={alert.key}
                 style={{
                   padding: '16px',
@@ -547,11 +544,13 @@ const HomePage = ({ theme = 'light' }) => {
                   marginBottom: index < alertsData.length - 1 ? '12px' : 0,
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  flexWrap: 'wrap', // Responsive wrapping
+                  gap: '12px'
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                <div style={{ flex: '1 1 300px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px', flexWrap: 'wrap' }}>
                     <Tag color={alert.severity === 'high' ? 'error' : 'warning'}>
                       {alert.severity.toUpperCase()}
                     </Tag>
@@ -564,7 +563,7 @@ const HomePage = ({ theme = 'light' }) => {
                     <ClockCircleOutlined /> {alert.time}
                   </div>
                 </div>
-                <Space>
+                <Space wrap>
                   <StyledButton type="icon" theme={theme} size="small" icon={<EyeOutlined />}>
                     View
                   </StyledButton>
@@ -581,21 +580,21 @@ const HomePage = ({ theme = 'light' }) => {
       {/* Recent Activity and Device Status */}
       <Row gutter={[24, 24]}>
         <Col xs={24} xl={14}>
-          <Card 
+          <Card
             title={
               <span style={{ fontSize: '18px', fontWeight: '600' }}>
                 <ThunderboltOutlined style={{ marginRight: '8px', color: isDark ? '#818cf8' : '#6366f1' }} />
                 Recent Activity
               </span>
             }
-            bordered={false} 
-            style={{ 
+            bordered={false}
+            style={{
               boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
               background: isDark ? '#1f2937' : '#ffffff',
               borderRadius: '12px'
             }}
             extra={
-              <Space>
+              <Space wrap>
                 <StyledButton type="secondary" theme={theme} size="small" icon={<ReloadOutlined />}>
                   Refresh
                 </StyledButton>
@@ -605,15 +604,16 @@ const HomePage = ({ theme = 'light' }) => {
               </Space>
             }
           >
-            <Table 
-              columns={activityColumns} 
-              dataSource={activityData} 
-              pagination={{ 
+            <Table
+              columns={activityColumns}
+              dataSource={activityData}
+              pagination={{
                 pageSize: 6,
                 showSizeChanger: false,
                 showTotal: (total) => `Total ${total} activities`
-              }} 
+              }}
               size="middle"
+              scroll={{ x: 800 }} // Enable horizontal scroll on small screens
               style={{
                 background: isDark ? '#1f2937' : '#ffffff'
               }}
@@ -622,21 +622,21 @@ const HomePage = ({ theme = 'light' }) => {
         </Col>
 
         <Col xs={24} xl={10}>
-          <Card 
+          <Card
             title={
               <span style={{ fontSize: '18px', fontWeight: '600' }}>
                 <ApiOutlined style={{ marginRight: '8px', color: isDark ? '#818cf8' : '#6366f1' }} />
                 Device Status
               </span>
             }
-            bordered={false} 
-            style={{ 
+            bordered={false}
+            style={{
               boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
               background: isDark ? '#1f2937' : '#ffffff',
               borderRadius: '12px'
             }}
             extra={
-              <Space>
+              <Space wrap>
                 <StyledButton type="secondary" theme={theme} size="small" icon={<SettingOutlined />}>
                   Manage
                 </StyledButton>
@@ -646,11 +646,12 @@ const HomePage = ({ theme = 'light' }) => {
               </Space>
             }
           >
-            <Table 
-              columns={deviceStatusColumns} 
-              dataSource={deviceData} 
-              pagination={false} 
+            <Table
+              columns={deviceStatusColumns}
+              dataSource={deviceData}
+              pagination={false}
               size="middle"
+              scroll={{ x: 500 }} // Enable horizontal scroll on small screens
               style={{
                 background: isDark ? '#1f2937' : '#ffffff'
               }}

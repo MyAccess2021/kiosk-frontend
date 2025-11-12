@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Avatar, Dropdown, Space } from 'antd';
-import { 
-  MenuOutlined, 
-  SunOutlined, 
-  MoonOutlined, 
+import {
+  MenuOutlined,
+  SunOutlined,
+  MoonOutlined,
   UserOutlined,
   SettingOutlined,
-  LogoutOutlined 
+  LogoutOutlined
 } from '@ant-design/icons';
 import { buttonStyles } from './utils/buttonStyles';
 import { themeConfig } from './utils/themeConfig';
@@ -17,6 +17,16 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const colors = themeConfig[theme];
   const menuBtn = buttonStyles.menu[theme];
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -53,22 +63,19 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
         padding: '16px 24px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between', // Changed to space-between
         position: 'sticky',
         top: 0,
         zIndex: 998,
         backgroundColor: 'transparent'
       }}
     >
-      {/* Menu Toggle Button - Fixed in Navbar, aligned with sidebar */}
+      {/* Menu Toggle Button */}
       <Button
         type="text"
         icon={<MenuOutlined />}
         onClick={toggleSidebar}
         style={{
-          position: 'fixed',
-          left: '20px',
-          top: '20px',
           fontSize: '20px',
           width: 56,
           height: 56,
@@ -116,8 +123,8 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
             boxShadow: colors.shadows.small
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = theme === 'light' 
-              ? 'rgba(255, 255, 255, 0.8)' 
+            e.currentTarget.style.backgroundColor = theme === 'light'
+              ? 'rgba(255, 255, 255, 0.8)'
               : 'rgba(31, 41, 55, 0.8)';
             e.currentTarget.style.transform = 'scale(1.05)';
           }}
@@ -128,7 +135,7 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
         />
 
         <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-          <div style={{ 
+          <div style={{
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -140,30 +147,31 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
             transition: buttonStyles.common.transition,
             boxShadow: colors.shadows.small
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = theme === 'light' 
-              ? 'rgba(255, 255, 255, 0.8)' 
-              : 'rgba(31, 41, 55, 0.8)';
-            e.currentTarget.style.transform = 'scale(1.02)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = colors.components.navbar.background;
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = theme === 'light'
+                ? 'rgba(255, 255, 255, 0.8)'
+                : 'rgba(31, 41, 55, 0.8)';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = colors.components.navbar.background;
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
           >
-            <Avatar 
-              icon={<UserOutlined />} 
-              style={{ 
+            <Avatar
+              icon={<UserOutlined />}
+              style={{
                 backgroundColor: colors.brand.primary
               }}
             />
-            <span style={{ 
-              fontWeight: 500,
-              color: colors.text.primary,
-              display: window.innerWidth >= 640 ? 'inline' : 'none'
-            }}>
-              {user?.name || 'User'}
-            </span>
+            {!isMobile && (
+              <span style={{
+                fontWeight: 500,
+                color: colors.text.primary,
+              }}>
+                {user?.name || 'User'}
+              </span>
+            )}
           </div>
         </Dropdown>
       </Space>

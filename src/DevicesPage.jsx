@@ -6,35 +6,35 @@ const { Title } = Typography;
 
 const DevicesPage = ({ theme }) => {
   const columns = [
-    { 
-      title: 'Device ID', 
-      dataIndex: 'id', 
-      key: 'id', 
+    {
+      title: 'Device ID',
+      dataIndex: 'id',
+      key: 'id',
       sorter: (a, b) => a.id - b.id,
     },
-    { 
-      title: 'Device Name', 
-      dataIndex: 'name', 
+    {
+      title: 'Device Name',
+      dataIndex: 'name',
       key: 'name',
     },
-    { 
-      title: 'Location', 
-      dataIndex: 'location', 
+    {
+      title: 'Location',
+      dataIndex: 'location',
       key: 'location',
     },
-    { 
-      title: 'Status', 
-      dataIndex: 'status', 
-      key: 'status', 
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
       render: status => (
         <Tag color={status === 'Online' ? 'success' : 'error'}>
           {status}
         </Tag>
       )
     },
-    { 
-      title: 'Last Seen', 
-      dataIndex: 'lastSeen', 
+    {
+      title: 'Last Seen',
+      dataIndex: 'lastSeen',
       key: 'lastSeen',
     },
   ];
@@ -51,22 +51,28 @@ const DevicesPage = ({ theme }) => {
       <Title level={3} style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
         <HddOutlined /> Device Management
       </Title>
-      
+
       <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-        <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-          <Input 
-            prefix={<SearchOutlined />} 
-            placeholder="Search devices..." 
-            style={{ width: 300 }}
-          />
-          <Button type="primary" icon={<PlusOutlined />}>
-            Add Device
-          </Button>
+        <Space
+          direction="vertical"
+          style={{ width: '100%', marginBottom: 16 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <Input
+              prefix={<SearchOutlined />}
+              placeholder="Search devices..."
+              style={{ maxWidth: 300, width: '100%' }}
+            />
+            <Button type="primary" icon={<PlusOutlined />}>
+              Add Device
+            </Button>
+          </div>
         </Space>
-        
-        <Table 
-          columns={columns} 
+
+        <Table
+          columns={columns}
           dataSource={data}
+          scroll={{ x: true }} // Enable horizontal scrolling for the table on small screens
           pagination={{
             pageSize: 10,
             showSizeChanger: true,

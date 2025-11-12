@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Select, Table, Tag, Tooltip,  theme ,notification, Spin, Checkbox, Row, Col, Typography, Space, Tabs } from 'antd';
+import { Button, Modal, Form, Input, Select, Table, Tag, Tooltip, theme, notification, Spin, Checkbox, Row, Col, Typography, Space, Tabs } from 'antd';
 import { UserOutlined, SafetyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined, EyeInvisibleOutlined, CheckOutlined, UserAddOutlined } from '@ant-design/icons';
 import { getUsers, createUser, updateUser, deleteUser, restoreUser, getRoles, createRole, updateRole, getPermissions } from './services/configService';
 
@@ -9,8 +9,8 @@ const { Title } = Typography;
 const ConfigPage = ({ theme: themeProp }) => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('users');
-    const [modal, contextHolder] = Modal.useModal();
-     const { token } = theme.useToken();
+  const [modal, contextHolder] = Modal.useModal();
+  const { token } = theme.useToken();
 
   // Users state
   const [users, setUsers] = useState([]);
@@ -19,7 +19,7 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [showDeletedUsers, setShowDeletedUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userForm] = Form.useForm();
-  
+
   // Roles state
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
@@ -27,13 +27,13 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [editingRole, setEditingRole] = useState(null);
   const [roleForm] = Form.useForm();
 
-  const roleColors = { 
-    Administrator: 'purple', 
-    Manager: 'blue', 
-    Operator: 'green', 
-    Viewer: 'gold', 
-    SuperAdmin: 'red', 
-    HR: 'cyan' 
+  const roleColors = {
+    Administrator: 'purple',
+    Manager: 'blue',
+    Operator: 'green',
+    Viewer: 'gold',
+    SuperAdmin: 'red',
+    HR: 'cyan'
   };
 
   const fetchData = useCallback(async () => {
@@ -48,26 +48,26 @@ const ConfigPage = ({ theme: themeProp }) => {
       setRoles(Array.isArray(rolesData) ? rolesData : []);
       setPermissions(Array.isArray(permsData) ? permsData : []);
     } catch (error) {
-      notification.error({ 
-        message: 'Fetch Failed', 
-        description: error.message || 'Could not load data.' 
+      notification.error({
+        message: 'Fetch Failed',
+        description: error.message || 'Could not load data.'
       });
     } finally {
       setLoading(false);
     }
   }, [showDeletedUsers]);
 
-  useEffect(() => { 
-    fetchData(); 
+  useEffect(() => {
+    fetchData();
   }, [fetchData]);
 
   // User Management
   const openUserModal = (user = null) => {
     if (user) {
       setEditingUser(user);
-      userForm.setFieldsValue({ 
-        ...user, 
-        roles: user.role_details.map(r => r.id) 
+      userForm.setFieldsValue({
+        ...user,
+        roles: user.role_details.map(r => r.id)
       });
     } else {
       setEditingUser(null);
@@ -79,9 +79,9 @@ const ConfigPage = ({ theme: themeProp }) => {
   const handleUserSubmit = async (values) => {
     setLoading(true);
     try {
-      const body = { 
-        ...values, 
-        roles: values.roles ? [values.roles] : [] 
+      const body = {
+        ...values,
+        roles: values.roles ? [values.roles] : []
       };
       if (editingUser) {
         await updateUser(editingUser.id, body);
@@ -93,149 +93,132 @@ const ConfigPage = ({ theme: themeProp }) => {
       setUserModalOpen(false);
       fetchData();
     } catch (error) {
-      const errorMsg = error.email 
-        ? `Email: ${error.email[0]}` 
+      const errorMsg = error.email
+        ? `Email: ${error.email[0]}`
         : (error.message || 'Failed to save user.');
-      notification.error({ 
-        message: 'Save Failed', 
-        description: errorMsg 
+      notification.error({
+        message: 'Save Failed',
+        description: errorMsg
       });
     } finally {
       setLoading(false);
     }
   };
 
- const handleUserDelete = (id) => {
-    // --- CHANGE 'Modal.confirm' to 'modal.confirm' ---
-    modal.confirm({ 
-      title: 'Are you sure?', 
-      content: 'This will temporarily deactivate the user.', 
+  const handleUserDelete = (id) => {
+    modal.confirm({
+      title: 'Are you sure?',
+      content: 'This will temporarily deactivate the user.',
       okText: 'Deactivate',
       okType: 'danger',
       async onOk() {
-        try { 
-          await deleteUser(id); 
-          notification.success({ message: 'User Deactivated'}); 
-          fetchData(); 
-        } catch(e) { 
-          notification.error({ message: 'Failed'})
+        try {
+          await deleteUser(id);
+          notification.success({ message: 'User Deactivated' });
+          fetchData();
+        } catch (e) {
+          notification.error({ message: 'Failed' })
         }
       }
     });
   };
 
- const handleUserRestore = (id) => {
-    // --- CHANGE 'Modal.confirm' to 'modal.confirm' ---
-    modal.confirm({ 
-      title: 'Are you sure?', 
-      content: 'This will reactivate the user.', 
+  const handleUserRestore = (id) => {
+    modal.confirm({
+      title: 'Are you sure?',
+      content: 'This will reactivate the user.',
       async onOk() {
-        try { 
-          await restoreUser(id); 
-          notification.success({ message: 'User Reactivated'}); 
-          fetchData(); 
-        } catch(e) { 
-          notification.error({ message: 'Failed'})
+        try {
+          await restoreUser(id);
+          notification.success({ message: 'User Reactivated' });
+          fetchData();
+        } catch (e) {
+          notification.error({ message: 'Failed' })
         }
       }
     });
   };
 
-const userColumns = [
-  { title: 'Name', dataIndex: 'name', key: 'name' },
-  { title: 'Email', dataIndex: 'email', key: 'email' },
-  { 
-    title: 'Mobile', 
-    key: 'mobile', 
-    render: (_, r) => r.country_code && r.mobile 
-      ? `${r.country_code} ${r.mobile}` 
-      : r.mobile || '-'
-  },
-  { 
-    title: 'Role', 
-    key: 'role', 
-    render: (_, r) => r.role_details.map(role => (
-      <Tag key={role.id} color={roleColors[role.name] || 'default'}>
-        {role.name}
-      </Tag>
-    ))
-  },
-  { 
-    title: 'Created At', 
-    key: 'created_at', 
-    render: (_, r) => new Date(r.created_at).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    })
-  },
-  { 
-    title: 'Updated At', 
-    key: 'updated_at', 
-    render: (_, r) => new Date(r.updated_at).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    })
-  },
-  { 
-    title: 'Status', 
-    key: 'status', 
-    render: (_, r) => (
-      <Tag color={r.deleted_at ? 'error' : 'success'}>
-        {r.deleted_at ? 'Inactive' : 'Active'}
-      </Tag>
-    )
-  },
-   { 
-    title: 'Actions', 
-    key: 'actions', 
-    render: (_, r) => (
-      <Space>
-        {/* --- DYNAMIC COLOR APPLIED HERE --- */}
-        <Tooltip 
-          title="Edit" 
-          overlayInnerStyle={{ color: token.colorText }}
-        >
-          <Button icon={<EditOutlined />} size="small" onClick={() => openUserModal(r)} />
-        </Tooltip>
+  const userColumns = [
+    { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'Email', dataIndex: 'email', key: 'email' },
+    {
+      title: 'Mobile',
+      key: 'mobile',
+      render: (_, r) => r.country_code && r.mobile
+        ? `${r.country_code} ${r.mobile}`
+        : r.mobile || '-'
+    },
+    {
+      title: 'Role',
+      key: 'role',
+      render: (_, r) => r.role_details.map(role => (
+        <Tag key={role.id} color={roleColors[role.name] || 'default'}>
+          {role.name}
+        </Tag>
+      ))
+    },
+    {
+      title: 'Created At',
+      key: 'created_at',
+      render: (_, r) => new Date(r.created_at).toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      })
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      render: (_, r) => (
+        <Tag color={r.deleted_at ? 'error' : 'success'}>
+          {r.deleted_at ? 'Inactive' : 'Active'}
+        </Tag>
+      )
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, r) => (
+        <Space>
+          <Tooltip
+            title="Edit"
+            overlayInnerStyle={{ color: token.colorText }}
+          >
+            <Button icon={<EditOutlined />} size="small" onClick={() => openUserModal(r)} />
+          </Tooltip>
 
-        {r.deleted_at 
-          ? <Tooltip 
-              title="Restore" 
+          {r.deleted_at
+            ? <Tooltip
+              title="Restore"
               overlayInnerStyle={{ color: token.colorText }}
             >
               <Button icon={<CheckOutlined />} size="small" onClick={() => handleUserRestore(r.id)} />
             </Tooltip>
-          : <Tooltip 
-              title="Deactivate" 
+            : <Tooltip
+              title="Deactivate"
               overlayInnerStyle={{ color: token.colorText }}
             >
               <Button icon={<DeleteOutlined />} size="small" danger onClick={() => handleUserDelete(r.id)} />
             </Tooltip>
-        }
-      </Space>
-    )
-  }
-];
-
-// Update the helper function to use the policy field
-const groupPermissionsByCategory = (permissions) => {
-  const groups = {};
-  
-  permissions.forEach(perm => {
-    const category = perm.policy; // Use the policy field from backend
-    
-    if (!groups[category]) {
-      groups[category] = [];
+          }
+        </Space>
+      )
     }
-    groups[category].push(perm);
-  });
-  
-  return groups;
-};
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
+  ];
+
+  const groupPermissionsByCategory = (permissions) => {
+    const groups = {};
+    permissions.forEach(perm => {
+      const category = perm.policy;
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(perm);
+    });
+    return groups;
+  };
+
+  const filteredUsers = users.filter(u =>
+    u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
 
@@ -243,9 +226,9 @@ const groupPermissionsByCategory = (permissions) => {
   const openRoleModal = (role = null) => {
     if (role) {
       setEditingRole(role);
-      roleForm.setFieldsValue({ 
-        ...role, 
-        permissions: role.permission_details.map(p => p.id) 
+      roleForm.setFieldsValue({
+        ...role,
+        permissions: role.permission_details.map(p => p.id)
       });
     } else {
       setEditingRole(null);
@@ -267,55 +250,49 @@ const groupPermissionsByCategory = (permissions) => {
       setRoleModalOpen(false);
       fetchData();
     } catch (error) {
-      notification.error({ 
-        message: 'Save Failed', 
-        description: error.message || 'Failed to save role.' 
+      notification.error({
+        message: 'Save Failed',
+        description: error.message || 'Failed to save role.'
       });
     } finally {
       setLoading(false);
     }
   };
-  
- const roleColumns = [
+
+  const roleColumns = [
     { title: 'Role Name', dataIndex: 'name', key: 'name' },
     { title: 'Description', dataIndex: 'description', key: 'description' },
-    { 
-      title: 'Permissions', 
-      key: 'permissions', 
+    {
+      title: 'Permissions',
+      key: 'permissions',
       render: (_, r) => `${r.permission_details.length} permissions`
     },
-    // --- NEW COLUMNS START HERE ---
-    { 
-      title: 'Created At', 
+    {
+      title: 'Created At',
       dataIndex: 'created_at',
-      key: 'created_at', 
+      key: 'created_at',
       render: (text) => new Date(text).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
+        day: '2-digit', month: 'short', year: 'numeric'
       })
     },
-    { 
-      title: 'Updated At', 
+    {
+      title: 'Updated At',
       dataIndex: 'updated_at',
-      key: 'updated_at', 
+      key: 'updated_at',
       render: (text) => new Date(text).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
+        day: '2-digit', month: 'short', year: 'numeric'
       })
     },
-    // --- NEW COLUMNS END HERE ---
-    { 
-      title: 'Actions', 
-      key: 'actions', 
+    {
+      title: 'Actions',
+      key: 'actions',
       render: (_, r) => (
-        <Tooltip 
+        <Tooltip
           title="Edit"
           overlayInnerStyle={{ color: token.colorText }}
         >
-          <Button 
-            icon={<EditOutlined />} 
+          <Button
+            icon={<EditOutlined />}
             size="small"
             onClick={() => openRoleModal(r)}
           />
@@ -335,34 +312,37 @@ const groupPermissionsByCategory = (permissions) => {
       ),
       children: (
         <div>
-          <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-            <Input 
-              prefix={<SearchOutlined />} 
-              placeholder="Search users..." 
-              style={{ width: 300 }}
-              value={userSearch} 
-              onChange={e => setUserSearch(e.target.value)} 
-            />
-            <Space>
-              <Button 
-                icon={showDeletedUsers ? <EyeInvisibleOutlined /> : <EyeOutlined />} 
-                onClick={() => setShowDeletedUsers(!showDeletedUsers)}
-              >
-                {showDeletedUsers ? 'Hide Inactive' : 'Show Inactive'}
-              </Button>
-              <Button 
-                type="primary" 
-                icon={<UserAddOutlined />} 
-                onClick={() => openUserModal()}
-              >
-                Add User
-              </Button>
-            </Space>
+          <Space direction="vertical" style={{ marginBottom: 16, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+              <Input
+                prefix={<SearchOutlined />}
+                placeholder="Search users..."
+                style={{ maxWidth: 300, flex: '1 1 200px' }}
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+              />
+              <Space wrap>
+                <Button
+                  icon={showDeletedUsers ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  onClick={() => setShowDeletedUsers(!showDeletedUsers)}
+                >
+                  {showDeletedUsers ? 'Hide Inactive' : 'Show Inactive'}
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<UserAddOutlined />}
+                  onClick={() => openUserModal()}
+                >
+                  Add User
+                </Button>
+              </Space>
+            </div>
           </Space>
-          <Table 
-            columns={userColumns} 
-            dataSource={filteredUsers} 
+          <Table
+            columns={userColumns}
+            dataSource={filteredUsers}
             loading={loading}
+            scroll={{ x: true }}
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
@@ -382,19 +362,20 @@ const groupPermissionsByCategory = (permissions) => {
       children: (
         <div>
           <div style={{ marginBottom: 16, textAlign: 'right' }}>
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />} 
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
               onClick={() => openRoleModal()}
             >
               Create Role
             </Button>
           </div>
-          <Table 
-            columns={roleColumns} 
-            dataSource={roles} 
-            loading={loading} 
+          <Table
+            columns={roleColumns}
+            dataSource={roles}
+            loading={loading}
             rowKey="id"
+            scroll={{ x: true }}
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
@@ -407,54 +388,54 @@ const groupPermissionsByCategory = (permissions) => {
 
   return (
     <div>
-       {contextHolder} 
+      {contextHolder}
       <Title level={3} style={{ marginBottom: 24 }}>
         Settings & Configuration
       </Title>
-      
-      <Tabs 
-        activeKey={activeTab} 
-        onChange={setActiveTab} 
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={tabItems}
       />
 
       {/* User Modal */}
-      <Modal 
-        title={editingUser ? 'Edit User' : 'Add User'} 
-        open={isUserModalOpen} 
-        onCancel={() => setUserModalOpen(false)} 
+      <Modal
+        title={editingUser ? 'Edit User' : 'Add User'}
+        open={isUserModalOpen}
+        onCancel={() => setUserModalOpen(false)}
         footer={null}
       >
         <Spin spinning={loading}>
-          <Form 
-            form={userForm} 
-            layout="vertical" 
-            onFinish={handleUserSubmit} 
+          <Form
+            form={userForm}
+            layout="vertical"
+            onFinish={handleUserSubmit}
             style={{ marginTop: 24 }}
           >
-            <Form.Item 
-              name="name" 
-              label="Full Name" 
+            <Form.Item
+              name="name"
+              label="Full Name"
               rules={[{ required: true, message: 'Please enter full name' }]}
             >
               <Input />
             </Form.Item>
-            <Form.Item 
-              name="email" 
-              label="Email" 
+            <Form.Item
+              name="email"
+              label="Email"
               rules={[
                 { required: true, message: 'Please enter email' },
                 { type: 'email', message: 'Please enter valid email' }
               ]}
             >
-              <Input disabled={!!editingUser}/>
+              <Input disabled={!!editingUser} />
             </Form.Item>
             <Form.Item name="mobile" label="Phone Number">
               <Input />
             </Form.Item>
-            <Form.Item 
-              name="roles" 
-              label="Role" 
+            <Form.Item
+              name="roles"
+              label="Role"
               rules={[{ required: true, message: 'Please select a role' }]}
             >
               <Select placeholder="Select a role">
@@ -464,9 +445,9 @@ const groupPermissionsByCategory = (permissions) => {
               </Select>
             </Form.Item>
             {!editingUser && (
-              <Form.Item 
-                name="password" 
-                label="Password" 
+              <Form.Item
+                name="password"
+                label="Password"
                 rules={[{ required: true, message: 'Please enter password' }]}
               >
                 <Input.Password />
@@ -483,23 +464,23 @@ const groupPermissionsByCategory = (permissions) => {
       </Modal>
 
       {/* Role Modal */}
-      <Modal 
-        title={editingRole ? 'Edit Role' : 'Create Role'} 
-        open={isRoleModalOpen} 
-        onCancel={() => setRoleModalOpen(false)} 
-        footer={null} 
+      <Modal
+        title={editingRole ? 'Edit Role' : 'Create Role'}
+        open={isRoleModalOpen}
+        onCancel={() => setRoleModalOpen(false)}
+        footer={null}
         width={600}
       >
         <Spin spinning={loading}>
-          <Form 
-            form={roleForm} 
-            layout="vertical" 
-            onFinish={handleRoleSubmit} 
+          <Form
+            form={roleForm}
+            layout="vertical"
+            onFinish={handleRoleSubmit}
             style={{ marginTop: 24 }}
           >
-            <Form.Item 
-              name="name" 
-              label="Role Name" 
+            <Form.Item
+              name="name"
+              label="Role Name"
               rules={[{ required: true, message: 'Please enter role name' }]}
             >
               <Input />
@@ -507,31 +488,31 @@ const groupPermissionsByCategory = (permissions) => {
             <Form.Item name="description" label="Description">
               <Input.TextArea rows={3} />
             </Form.Item>
-        <Form.Item name="permissions" label="Permissions">
-  <Checkbox.Group style={{ width: '100%' }}>
-    {(() => {
-      const groupedPerms = groupPermissionsByCategory(permissions);
-      return (
-        <div>
-          {Object.entries(groupedPerms).map(([category, perms]) => (
-            <div key={category} style={{ marginBottom: 16 }}>
-              <Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>
-                {category}
-              </Title>
-              <Row gutter={[16, 8]}>
-                {perms.map(p => (
-                  <Col span={8} key={p.id}>
-                    <Checkbox value={p.id}>{p.name}</Checkbox>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          ))}
-        </div>
-      );
-    })()}
-  </Checkbox.Group>
-</Form.Item>
+            <Form.Item name="permissions" label="Permissions">
+              <Checkbox.Group style={{ width: '100%' }}>
+                {(() => {
+                  const groupedPerms = groupPermissionsByCategory(permissions);
+                  return (
+                    <div>
+                      {Object.entries(groupedPerms).map(([category, perms]) => (
+                        <div key={category} style={{ marginBottom: 16 }}>
+                          <Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>
+                            {category}
+                          </Title>
+                          <Row gutter={[16, 8]}>
+                            {perms.map(p => (
+                              <Col xs={24} sm={12} md={8} key={p.id}>
+                                <Checkbox value={p.id}>{p.name}</Checkbox>
+                              </Col>
+                            ))}
+                          </Row>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </Checkbox.Group>
+            </Form.Item>
             <div style={{ textAlign: 'right' }}>
               <Space>
                 <Button onClick={() => setRoleModalOpen(false)}>Cancel</Button>

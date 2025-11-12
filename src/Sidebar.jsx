@@ -1,11 +1,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  HomeOutlined, 
-  EyeOutlined, 
-  HddOutlined, 
-  ThunderboltOutlined, 
-  SettingOutlined, 
+import {
+  HomeOutlined,
+  EyeOutlined,
+  HddOutlined,
+  ThunderboltOutlined,
+  SettingOutlined,
   LogoutOutlined
 } from '@ant-design/icons';
 import { buttonStyles } from './utils/buttonStyles';
@@ -33,30 +33,33 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
 
   const handleMenuClick = (path) => {
     navigate(path);
-    toggleSidebar();
+    // If on a mobile device, close the sidebar after clicking an item
+    if (window.innerWidth < 768) {
+      toggleSidebar();
+    }
   };
 
   return (
     <>
       {/* Floating Sidebar */}
-      <div
+       <div
         style={{
           position: 'fixed',
-          left: isOpen ? '20px' : '-100px',
+          left: isOpen ? '24px' : '-100px',
           top: '50%',
           transform: 'translateY(-50%)',
-          zIndex: 1000,
+          zIndex: 1000, // zIndex is higher than the background overlay
           display: 'flex',
           flexDirection: 'column',
+          alignItems: 'center', // Added this line to align items in a straight vertical line
           gap: '12px',
-          transition: 'left 0.3s ease-out',
+          transition: 'left 0.3s ease-out, opacity 0.3s ease-out',
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? 'auto' : 'none'
         }}
       >
-        {/* Menu Items with Waterfall Animation */}
         {menuItems.map((item, index) => (
-          <div 
+          <div
             key={item.key}
             style={{
               animation: isOpen ? `waterfallIn 0.4s ease-out ${index * 0.08}s both` : 'none',
@@ -69,7 +72,7 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
                 width: '56px',
                 height: '56px',
                 borderRadius: '16px',
-                backgroundColor: location.pathname === item.key 
+                backgroundColor: location.pathname === item.key
                   ? menuBtn.activeBackgroundColor
                   : menuBtn.backgroundColor,
                 display: 'flex',
@@ -77,8 +80,8 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 transition: buttonStyles.common.transition,
-                boxShadow: location.pathname === item.key 
-                  ? '0 4px 16px rgba(167, 139, 167, 0.4)' 
+                boxShadow: location.pathname === item.key
+                  ? '0 4px 16px rgba(167, 139, 167, 0.4)'
                   : colors.shadows.medium,
                 backdropFilter: 'blur(10px)'
               }}
@@ -88,13 +91,13 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.backgroundColor = location.pathname === item.key 
+                e.currentTarget.style.backgroundColor = location.pathname === item.key
                   ? menuBtn.activeBackgroundColor
                   : menuBtn.backgroundColor;
               }}
             >
-              {React.cloneElement(item.icon, { 
-                style: { fontSize: '22px', color: menuBtn.color } 
+              {React.cloneElement(item.icon, {
+                style: { fontSize: '22px', color: menuBtn.color }
               })}
             </div>
             <div style={{
@@ -110,9 +113,8 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
           </div>
         ))}
 
-        {/* Logout Button with Waterfall Animation */}
-        <div 
-          style={{ 
+        <div
+          style={{
             marginTop: '8px',
             animation: isOpen ? `waterfallIn 0.4s ease-out ${menuItems.length * 0.08}s both` : 'none',
             opacity: isOpen ? 1 : 0
@@ -158,11 +160,11 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
 
         <style>{`
           @keyframes waterfallIn {
-            from { 
+            from {
               opacity: 0;
               transform: translateX(-30px) translateY(-10px);
             }
-            to { 
+            to {
               opacity: 1;
               transform: translateX(0) translateY(0);
             }

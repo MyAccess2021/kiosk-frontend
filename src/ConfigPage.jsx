@@ -79,10 +79,16 @@ const ConfigPage = ({ theme: themeProp }) => {
   const handleUserSubmit = async (values) => {
     setLoading(true);
     try {
+      // Corrected logic for handling the roles payload
+      const rolesPayload = values.roles
+          ? (Array.isArray(values.roles) ? values.roles : [values.roles])
+          : [];
+
       const body = {
         ...values,
-        roles: values.roles ? [values.roles] : []
+        roles: rolesPayload
       };
+
       if (editingUser) {
         await updateUser(editingUser.id, body);
         notification.success({ message: 'User Updated' });
@@ -428,7 +434,7 @@ const ConfigPage = ({ theme: themeProp }) => {
                 { type: 'email', message: 'Please enter valid email' }
               ]}
             >
-              <Input disabled={!!editingUser} />
+              <Input  />
             </Form.Item>
             <Form.Item name="mobile" label="Phone Number">
               <Input />

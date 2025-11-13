@@ -3,41 +3,31 @@
 # =============================
 FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first for better caching
+# Copy package files first for caching
 COPY package*.json ./
 
-# Fix permission issues for Vite & other binaries
-RUN npm config set unsafe-perm true
-
-# Install dependencies cleanly
+# Install dependencies
 RUN npm ci --legacy-peer-deps
 
-# Copy the entire project
+# Copy project files
 COPY . .
 
-# Ensure Vite CLI is executable
-RUN chmod +x node_modules/.bin/*
-
-# Build the app
+# Build Vite app
 RUN npm run build
-
 
 # =============================
 # 2. Production Stage — Serve via Nginx
 # =============================
 FROM nginx:stable-alpine
 
-# Remove default nginx static assets
+# Clean default HTML
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy built assets from builder
+# Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port 80
 EXPOSE 80
 
-# Start Nginx
 CMD ["nginx", "-g", "daemon off;"]

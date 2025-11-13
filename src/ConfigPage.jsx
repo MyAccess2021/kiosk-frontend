@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Select, Table, Tag, Tooltip, theme, notification, Spin, Checkbox, Row, Col, Typography, Space, Tabs } from 'antd';
-import { UserOutlined, SafetyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined, EyeInvisibleOutlined, CheckOutlined, UserAddOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Select, Table, Tag, Tooltip, theme, notification, Spin, Checkbox, Row, Col, Typography, Space, Tabs, Alert } from 'antd';
+import { UserOutlined, SafetyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined, EyeInvisibleOutlined, CheckOutlined, UserAddOutlined, LockOutlined } from '@ant-design/icons';
 import { getUsers, createUser, updateUser, deleteUser, restoreUser, getRoles, createRole, updateRole, getPermissions } from './services/configService';
+import {
+  canViewUser,
+  canCreateUser,
+  canUpdateUser,
+  canDeleteUser,
+  canRestoreUser,
+  canViewRole,
+  canCreateRole,
+  canUpdateRole
+} from './utils/permissions';
 
 const { Option } = Select;
 const { Title } = Typography;
@@ -19,7 +29,7 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [showDeletedUsers, setShowDeletedUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userForm] = Form.useForm();
-   const [activeUserTooltip, setActiveUserTooltip] = useState(null);
+  const [activeUserTooltip, setActiveUserTooltip] = useState(null);
 
   // Roles state
   const [roles, setRoles] = useState([]);
@@ -27,7 +37,8 @@ const ConfigPage = ({ theme: themeProp }) => {
   const [isRoleModalOpen, setRoleModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [roleForm] = Form.useForm();
-const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
+  const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
+
   const roleColors = {
     Administrator: 'purple',
     Manager: 'blue',
@@ -40,11 +51,25 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [usersData, rolesData, permsData] = await Promise.all([
-        getUsers(showDeletedUsers),
-        getRoles(),
-        getPermissions()
-      ]);
+      // Only fetch data if user has permission
+      const promises = [];
+      
+      if (canViewUser()) {
+        promises.push(getUsers(showDeletedUsers));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      if (canViewRole()) {
+        promises.push(getRoles());
+        promises.push(getPermissions());
+      } else {
+        promises.push(Promise.resolve([]));
+        promises.push(Promise.resolve([]));
+      }
+
+      const [usersData, rolesData, permsData] = await Promise.all(promises);
+      
       setUsers(Array.isArray(usersData) ? usersData.map(u => ({ ...u, key: u.id })) : []);
       setRoles(Array.isArray(rolesData) ? rolesData : []);
       setPermissions(Array.isArray(permsData) ? permsData : []);
@@ -64,7 +89,26 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
 
   // User Management
   const openUserModal = (user = null) => {
-    setActiveUserTooltip(null); // Hide any active user tooltips
+    // Check permission before opening modal
+    if (user && !canUpdateUser()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to update users.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+    
+    if (!user && !canCreateUser()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to create users.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
+    setActiveUserTooltip(null);
     if (user) {
       setEditingUser(user);
       userForm.setFieldsValue({
@@ -77,13 +121,13 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
     }
     setUserModalOpen(true);
   };
+
   const handleUserSubmit = async (values) => {
     setLoading(true);
     try {
-      // Corrected logic for handling the roles payload
       const rolesPayload = values.roles
-          ? (Array.isArray(values.roles) ? values.roles : [values.roles])
-          : [];
+        ? (Array.isArray(values.roles) ? values.roles : [values.roles])
+        : [];
 
       const body = {
         ...values,
@@ -113,6 +157,16 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
   };
 
   const handleUserDelete = (id) => {
+    // Check permission
+    if (!canDeleteUser()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to deactivate users.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
     modal.confirm({
       title: 'Are you sure?',
       content: 'This will temporarily deactivate the user.',
@@ -124,13 +178,23 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
           notification.success({ message: 'User Deactivated' });
           fetchData();
         } catch (e) {
-          notification.error({ message: 'Failed' })
+          notification.error({ message: 'Failed' });
         }
       }
     });
   };
 
   const handleUserRestore = (id) => {
+    // Check permission
+    if (!canRestoreUser()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to restore users.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
     modal.confirm({
       title: 'Are you sure?',
       content: 'This will reactivate the user.',
@@ -140,13 +204,13 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
           notification.success({ message: 'User Reactivated' });
           fetchData();
         } catch (e) {
-          notification.error({ message: 'Failed' })
+          notification.error({ message: 'Failed' });
         }
       }
     });
   };
 
- const userColumns = [
+  const userColumns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Email', dataIndex: 'email', key: 'email' },
     {
@@ -186,39 +250,46 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
       key: 'actions',
       render: (_, r) => (
         <Space>
-          <Tooltip
-            title="Edit"
-            overlayInnerStyle={{ color: token.colorText }}
-            open={activeUserTooltip === `edit-${r.id}`}
-            onOpenChange={(visible) => setActiveUserTooltip(visible ? `edit-${r.id}` : null)}
-          >
-            <Button icon={<EditOutlined />} size="small" onClick={() => openUserModal(r)} />
-          </Tooltip>
+          {canUpdateUser() && (
+            <Tooltip
+              title="Edit"
+              overlayInnerStyle={{ color: token.colorText }}
+              open={activeUserTooltip === `edit-${r.id}`}
+              onOpenChange={(visible) => setActiveUserTooltip(visible ? `edit-${r.id}` : null)}
+            >
+              <Button icon={<EditOutlined />} size="small" onClick={() => openUserModal(r)} />
+            </Tooltip>
+          )}
 
-          {r.deleted_at
-            ? <Tooltip
-              title="Restore"
-              overlayInnerStyle={{ color: token.colorText }}
-              open={activeUserTooltip === `restore-${r.id}`}
-              onOpenChange={(visible) => setActiveUserTooltip(visible ? `restore-${r.id}` : null)}
-            >
-              <Button icon={<CheckOutlined />} size="small" onClick={() => {
-                setActiveUserTooltip(null);
-                handleUserRestore(r.id);
-              }} />
-            </Tooltip>
-            : <Tooltip
-              title="Deactivate"
-              overlayInnerStyle={{ color: token.colorText }}
-              open={activeUserTooltip === `deactivate-${r.id}`}
-              onOpenChange={(visible) => setActiveUserTooltip(visible ? `deactivate-${r.id}` : null)}
-            >
-              <Button icon={<DeleteOutlined />} size="small" danger onClick={() => {
-                setActiveUserTooltip(null);
-                handleUserDelete(r.id);
-              }} />
-            </Tooltip>
-          }
+          {r.deleted_at ? (
+            canRestoreUser() && (
+              <Tooltip
+                title="Restore"
+                overlayInnerStyle={{ color: token.colorText }}
+                open={activeUserTooltip === `restore-${r.id}`}
+                onOpenChange={(visible) => setActiveUserTooltip(visible ? `restore-${r.id}` : null)}
+              >
+                <Button icon={<CheckOutlined />} size="small" onClick={() => {
+                  setActiveUserTooltip(null);
+                  handleUserRestore(r.id);
+                }} />
+              </Tooltip>
+            )
+          ) : (
+            canDeleteUser() && (
+              <Tooltip
+                title="Deactivate"
+                overlayInnerStyle={{ color: token.colorText }}
+                open={activeUserTooltip === `deactivate-${r.id}`}
+                onOpenChange={(visible) => setActiveUserTooltip(visible ? `deactivate-${r.id}` : null)}
+              >
+                <Button icon={<DeleteOutlined />} size="small" danger onClick={() => {
+                  setActiveUserTooltip(null);
+                  handleUserDelete(r.id);
+                }} />
+              </Tooltip>
+            )
+          )}
         </Space>
       )
     }
@@ -242,8 +313,27 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
   );
 
   // Role Management
-   const openRoleModal = (role = null) => {
-    setActiveRoleTooltip(null); // Hide any active role tooltips
+  const openRoleModal = (role = null) => {
+    // Check permission before opening modal
+    if (role && !canUpdateRole()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to update roles.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+    
+    if (!role && !canCreateRole()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to create roles.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
+    setActiveRoleTooltip(null);
     if (role) {
       setEditingRole(role);
       roleForm.setFieldsValue({
@@ -279,7 +369,7 @@ const [activeRoleTooltip, setActiveRoleTooltip] = useState(null);
     }
   };
 
-const roleColumns = [
+  const roleColumns = [
     { title: 'Role Name', dataIndex: 'name', key: 'name' },
     { title: 'Description', dataIndex: 'description', key: 'description' },
     {
@@ -307,18 +397,20 @@ const roleColumns = [
       title: 'Actions',
       key: 'actions',
       render: (_, r) => (
-        <Tooltip
-          title="Edit"
-          overlayInnerStyle={{ color: token.colorText }}
-          open={activeRoleTooltip === r.id}
-          onOpenChange={(visible) => setActiveRoleTooltip(visible ? r.id : null)}
-        >
-          <Button
-            icon={<EditOutlined />}
-            size="small"
-            onClick={() => openRoleModal(r)}
-          />
-        </Tooltip>
+        canUpdateRole() && (
+          <Tooltip
+            title="Edit"
+            overlayInnerStyle={{ color: token.colorText }}
+            open={activeRoleTooltip === r.id}
+            onOpenChange={(visible) => setActiveRoleTooltip(visible ? r.id : null)}
+          >
+            <Button
+              icon={<EditOutlined />}
+              size="small"
+              onClick={() => openRoleModal(r)}
+            />
+          </Tooltip>
+        )
       )
     }
   ];
@@ -334,42 +426,57 @@ const roleColumns = [
       ),
       children: (
         <div>
-          <Space direction="vertical" style={{ marginBottom: 16, width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              <Input
-                prefix={<SearchOutlined />}
-                placeholder="Search users..."
-                style={{ maxWidth: 300, flex: '1 1 200px' }}
-                value={userSearch}
-                onChange={e => setUserSearch(e.target.value)}
-              />
-              <Space wrap>
-                <Button
-                  icon={showDeletedUsers ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                  onClick={() => setShowDeletedUsers(!showDeletedUsers)}
-                >
-                  {showDeletedUsers ? 'Hide Inactive' : 'Show Inactive'}
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<UserAddOutlined />}
-                  onClick={() => openUserModal()}
-                >
-                  Add User
-                </Button>
+          {!canViewUser() ? (
+            <Alert
+              message="Permission Denied"
+              description="You do not have permission to view users."
+              type="warning"
+              showIcon
+              icon={<LockOutlined />}
+              style={{ marginBottom: 16 }}
+            />
+          ) : (
+            <>
+              <Space direction="vertical" style={{ marginBottom: 16, width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                  <Input
+                    prefix={<SearchOutlined />}
+                    placeholder="Search users..."
+                    style={{ maxWidth: 300, flex: '1 1 200px' }}
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                  />
+                  <Space wrap>
+                    <Button
+                      icon={showDeletedUsers ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                      onClick={() => setShowDeletedUsers(!showDeletedUsers)}
+                    >
+                      {showDeletedUsers ? 'Hide Inactive' : 'Show Inactive'}
+                    </Button>
+                    {canCreateUser() && (
+                      <Button
+                        type="primary"
+                        icon={<UserAddOutlined />}
+                        onClick={() => openUserModal()}
+                      >
+                        Add User
+                      </Button>
+                    )}
+                  </Space>
+                </div>
               </Space>
-            </div>
-          </Space>
-          <Table
-            columns={userColumns}
-            dataSource={filteredUsers}
-            loading={loading}
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-            }}
-          />
+              <Table
+                columns={userColumns}
+                dataSource={filteredUsers}
+                loading={loading}
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                }}
+              />
+            </>
+          )}
         </div>
       ),
     },
@@ -383,26 +490,41 @@ const roleColumns = [
       ),
       children: (
         <div>
-          <div style={{ marginBottom: 16, textAlign: 'right' }}>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => openRoleModal()}
-            >
-              Create Role
-            </Button>
-          </div>
-          <Table
-            columns={roleColumns}
-            dataSource={roles}
-            loading={loading}
-            rowKey="id"
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-            }}
-          />
+          {!canViewRole() ? (
+            <Alert
+              message="Permission Denied"
+              description="You do not have permission to view roles."
+              type="warning"
+              showIcon
+              icon={<LockOutlined />}
+              style={{ marginBottom: 16 }}
+            />
+          ) : (
+            <>
+              <div style={{ marginBottom: 16, textAlign: 'right' }}>
+                {canCreateRole() && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => openRoleModal()}
+                  >
+                    Create Role
+                  </Button>
+                )}
+              </div>
+              <Table
+                columns={roleColumns}
+                dataSource={roles}
+                loading={loading}
+                rowKey="id"
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                }}
+              />
+            </>
+          )}
         </div>
       ),
     },
@@ -450,7 +572,7 @@ const roleColumns = [
                 { type: 'email', message: 'Please enter valid email' }
               ]}
             >
-              <Input  />
+              <Input />
             </Form.Item>
             <Form.Item name="mobile" label="Phone Number">
               <Input />

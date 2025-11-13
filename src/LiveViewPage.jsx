@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Select, Switch, Table, Tag, Tooltip, notification, Spin, Empty, Tabs, Space, Typography, theme, Row, Col } from 'antd';
-import { VideoCameraOutlined, UnorderedListOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Select, Switch, Table, Tag, Tooltip, notification, Spin, Empty, Tabs, Space, Typography, theme, Row, Col, Alert } from 'antd';
+import { VideoCameraOutlined, UnorderedListOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined, LockOutlined } from '@ant-design/icons';
 import { getCameras, createCamera, updateCamera, deleteCamera } from './services/cameraService';
+import {
+  canViewCamera,
+  canCreateCamera,
+  canUpdateCamera,
+  canDeleteCamera
+} from './utils/permissions';
 
 const { Option } = Select;
 const { Title } = Typography;
@@ -10,7 +16,19 @@ const LiveViewPage = ({ theme: themeProp }) => {
   const { token } = theme.useToken();
   const [modal, contextHolder] = Modal.useModal();
 
-  const [activeTab, setActiveTab] = useState('view');
+  // Determine the default tab based on permissions
+  const getDefaultTab = () => {
+    if (canViewCamera()) {
+      return 'view'; // If user can view, show the live view first.
+    }
+    // If they can do any management action, show the list view.
+    if (canCreateCamera() || canUpdateCamera() || canDeleteCamera()) {
+      return 'manage';
+    }
+    return 'view'; // Fallback to view
+  };
+
+  const [activeTab, setActiveTab] = useState(getDefaultTab);
   const [allCameras, setAllCameras] = useState([]);
   const [liveCameras, setLiveCameras] = useState([]);
   const [selectedStreamIndex, setSelectedStreamIndex] = useState(0);
@@ -19,7 +37,14 @@ const LiveViewPage = ({ theme: themeProp }) => {
   const [editingCamera, setEditingCamera] = useState(null);
   const [form] = Form.useForm();
 
+  const hasAnyCameraPermission = canViewCamera() || canCreateCamera() || canUpdateCamera() || canDeleteCamera();
+
   const fetchData = useCallback(async () => {
+    // We can only fetch camera lists if the user has view permission.
+    if (!canViewCamera()) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [allData, liveData] = await Promise.all([
@@ -46,6 +71,24 @@ const LiveViewPage = ({ theme: themeProp }) => {
   }, [fetchData]);
 
   const openModal = (camera = null) => {
+    if (camera && !canUpdateCamera()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to update cameras.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+    
+    if (!camera && !canCreateCamera()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to create cameras.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
     if (camera) {
       setEditingCamera(camera);
       form.setFieldsValue(camera);
@@ -88,6 +131,15 @@ const LiveViewPage = ({ theme: themeProp }) => {
   };
 
   const handleDelete = (id, name) => {
+    if (!canDeleteCamera()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to delete cameras.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />
+      });
+      return;
+    }
+
     modal.confirm({
       title: `Delete ${name}?`,
       content: 'Are you sure you want to delete this camera? This action cannot be undone.',
@@ -158,39 +210,56 @@ const LiveViewPage = ({ theme: themeProp }) => {
       )
     },
     {
-        title: 'Actions',
-        key: 'actions',
-        render: (_, record) => (
-            <Space>
-                <Tooltip title="View" overlayInnerStyle={{ color: token.colorText }}>
-                    <Button
-                        icon={<EyeOutlined />}
-                        size="small"
-                        onClick={() => handleViewCamera(record)}
-                        disabled={!record.is_active}
-                    />
-                </Tooltip>
-                <Tooltip title="Edit" overlayInnerStyle={{ color: token.colorText }}>
-                    <Button
-                        icon={<EditOutlined />}
-                        size="small"
-                        onClick={() => openModal(record)}
-                    />
-                </Tooltip>
-                <Tooltip title="Delete" overlayInnerStyle={{ color: token.colorText }}>
-                    <Button
-                        icon={<DeleteOutlined />}
-                        size="small"
-                        danger
-                        onClick={() => handleDelete(record.id, record.camera_name)}
-                    />
-                </Tooltip>
-            </Space>
-        )
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="View" overlayInnerStyle={{ color: token.colorText }}>
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => handleViewCamera(record)}
+              disabled={!record.is_active}
+            />
+          </Tooltip>
+          {canUpdateCamera() && (
+            <Tooltip title="Edit" overlayInnerStyle={{ color: token.colorText }}>
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => openModal(record)}
+              />
+            </Tooltip>
+          )}
+          {canDeleteCamera() && (
+            <Tooltip title="Delete" overlayInnerStyle={{ color: token.colorText }}>
+              <Button
+                icon={<DeleteOutlined />}
+                size="small"
+                danger
+                onClick={() => handleDelete(record.id, record.camera_name)}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      )
     },
   ];
 
   const renderLiveView = () => {
+    if (!canViewCamera()) {
+      return (
+        <Alert
+          message="Permission Denied"
+          description="You do not have permission to view live camera streams."
+          type="warning"
+          showIcon
+          icon={<LockOutlined />}
+          style={{ marginTop: 24 }}
+        />
+      );
+    }
+    
     if (loading) {
       return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
@@ -214,7 +283,6 @@ const LiveViewPage = ({ theme: themeProp }) => {
 
     return (
       <Row gutter={[16, 16]}>
-        {/* Main Camera View */}
         <Col xs={24} lg={otherCameras.length > 0 ? 18 : 24}>
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', backgroundColor: '#000', flex: 1, minHeight: '400px' }}>
@@ -237,7 +305,6 @@ const LiveViewPage = ({ theme: themeProp }) => {
           </div>
         </Col>
 
-        {/* Other Camera Previews */}
         {otherCameras.length > 0 && (
           <Col xs={24} lg={6}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
@@ -273,36 +340,70 @@ const LiveViewPage = ({ theme: themeProp }) => {
     );
   };
 
-  const renderCameraList = () => (
-    <div>
-      <Space direction="vertical" style={{ marginBottom: 16, width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          <Title level={4} style={{ margin: 0 }}>All Registered Cameras</Title>
-          <Space wrap>
-            <Button icon={<ReloadOutlined spin={loading} />} onClick={fetchData} disabled={loading}>
-              Refresh
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-              Add Camera
-            </Button>
-          </Space>
-        </div>
-      </Space>
-      <Table
-        columns={columns}
-        dataSource={allCameras}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
-        scroll={{ x: true }} // Enable horizontal scroll on mobile
-      />
-    </div>
-  );
+  const renderCameraList = () => {
+    return (
+      <div>
+        <Space direction="vertical" style={{ marginBottom: 16, width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <Title level={4} style={{ margin: 0 }}>All Registered Cameras</Title>
+            <Space wrap>
+              {canViewCamera() && (
+                <Button icon={<ReloadOutlined spin={loading} />} onClick={fetchData} disabled={loading}>
+                  Refresh
+                </Button>
+              )}
+              {canCreateCamera() && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+                  Add Camera
+                </Button>
+              )}
+            </Space>
+          </div>
+        </Space>
+
+        {canViewCamera() ? (
+          <Table
+            columns={columns}
+            dataSource={allCameras}
+            rowKey="id"
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            scroll={{ x: true }}
+          />
+        ) : (
+          <Alert
+            message="Permission Denied"
+            description="You do not have permission to view the list of cameras."
+            type="info"
+            showIcon
+            style={{ marginTop: '16px' }}
+          />
+        )}
+      </div>
+    );
+  };
 
   const tabItems = [
     { key: 'view', label: <span><VideoCameraOutlined />Live View</span>, children: renderLiveView() },
     { key: 'manage', label: <span><UnorderedListOutlined />Camera List</span>, children: renderCameraList() },
   ];
+
+  if (!hasAnyCameraPermission) {
+    return (
+      <div>
+        <Title level={3} style={{ marginBottom: 24 }}>
+          Camera System
+        </Title>
+        <Alert
+          message="Permission Denied"
+          description="You do not have any permissions to manage or view cameras."
+          type="error"
+          showIcon
+          icon={<LockOutlined />}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

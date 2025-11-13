@@ -18,7 +18,7 @@ RUN npm ci --legacy-peer-deps
 # Copy the entire project
 COPY . .
 
-# Ensure Vite binary has execute permission
+# Ensure Vite CLI is executable
 RUN chmod +x node_modules/.bin/*
 
 # Build the app
@@ -35,9 +35,6 @@ RUN rm -rf /usr/share/nginx/html/*
 
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# (Optional) Use a custom nginx config
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80

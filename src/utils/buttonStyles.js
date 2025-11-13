@@ -101,14 +101,16 @@ export const buttonStyles = {
 
   // Logout Button
   logout: {
-    light: {
-      backgroundColor: 'rgba(239, 68, 68, 0.85)',
-      hoverBackgroundColor: 'rgba(220, 38, 38, 0.95)',
+   light: {
+      backgroundColor: 'rgba(167, 139, 167, 0.75)',
+      hoverBackgroundColor: 'rgba(167, 139, 167, 0.95)',
+      activeBackgroundColor: 'rgba(167, 139, 167, 0.95)',
       color: '#ffffff',
     },
     dark: {
-      backgroundColor: 'rgba(239, 68, 68, 0.85)',
-      hoverBackgroundColor: 'rgba(220, 38, 38, 0.95)',
+      backgroundColor: 'rgba(167, 139, 167, 0.75)',
+      hoverBackgroundColor: 'rgba(167, 139, 167, 0.95)',
+      activeBackgroundColor: 'rgba(167, 139, 167, 0.95)',
       color: '#ffffff',
     }
   },

@@ -34,11 +34,7 @@ const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
   };
 
   const menuItems = [
-    {
-      key: '1',
-      icon: <UserOutlined />,
-      label: 'Profile',
-    },
+   
     {
       key: '2',
       icon: <SettingOutlined />,

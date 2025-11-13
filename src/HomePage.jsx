@@ -122,7 +122,7 @@ const StatCard = ({ title, value, icon, color, theme, trend, trendValue }) => {
 
 const HomePage = ({ theme = 'light' }) => {
   const isDark = theme === 'dark';
-  const user = { name: 'John Doe', role: 'System Administrator' };
+  const user = { name: 'User', role: 'System Administrator' };
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = () => {

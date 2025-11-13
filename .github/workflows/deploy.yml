@@ -3,7 +3,7 @@ name: 🚀 Deploy kiosk_frontend to Server
 on:
   push:
     branches:
-      - main  # Trigger deploy whenever main branch is updated
+      - main
 
 jobs:
   deploy:
@@ -17,6 +17,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASS }}
           port: ${{ secrets.SERVER_PORT }}
+
           script: |
             set -e
 
@@ -28,18 +29,13 @@ jobs:
 
             echo "===== 📂 Ensuring base directory exists ====="
             mkdir -p "$PROJECTS_DIR"
-            cd "$PROJECTS_DIR"
 
-            if [ -d "$PROJECT_PATH/.git" ]; then
-              echo "===== 🔄 Repo exists, pulling latest changes ====="
-              cd "$PROJECT_PATH"
-              git fetch origin main
-              git reset --hard origin/main
-            else
-              echo "===== 📥 Cloning repo for the first time ====="
-              git clone https://github.com/MyAccess2021/kiosk-frontend.git "$PROJECT_PATH"
-              cd "$PROJECT_PATH"
-            fi
+            echo "===== 🗑️ Removing old project directory ====="
+            rm -rf "$PROJECT_PATH"
+
+            echo "===== 📥 Cloning fresh repo ====="
+            git clone https://github.com/MyAccess2021/kiosk-frontend.git "$PROJECT_PATH"
+            cd "$PROJECT_PATH"
 
             echo "===== 🧹 Removing old container and image ====="
             docker ps -q --filter "name=$CONTAINER_NAME" | grep -q . && docker rm -f "$CONTAINER_NAME" || echo "No running container."

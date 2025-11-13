@@ -9,11 +9,17 @@ WORKDIR /app
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
+# Fix permission issues for Vite & other binaries
+RUN npm config set unsafe-perm true
 
-# Copy project files
+# Install dependencies cleanly
+RUN npm ci --legacy-peer-deps
+
+# Copy the entire project
 COPY . .
+
+# Ensure Vite binary has execute permission
+RUN chmod +x node_modules/.bin/*
 
 # Build the app
 RUN npm run build
@@ -30,8 +36,7 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom Nginx config (optional)
-# You can override default.conf if needed
+# (Optional) Use a custom nginx config
 # COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80

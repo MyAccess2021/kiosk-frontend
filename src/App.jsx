@@ -10,6 +10,7 @@ import LiveViewPage from './LiveViewPage';
 import DevicesPage from './DevicesPage';
 import ActivityLogPage from './ActivityLogPage';
 import ConfigPage from './ConfigPage';
+import ApplicationPage from './ApplicationPage';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('accessToken');
@@ -126,6 +127,7 @@ function App() {
               <Route path="devices" element={<DevicesPage theme={themeMode} />} />
               <Route path="activity-log" element={<ActivityLogPage theme={themeMode} />} />
               <Route path="config" element={<ConfigPage theme={themeMode} />} />
+              <Route path="application" element={<ApplicationPage theme={themeMode} />} />
             </Route>
           </Routes>
         </Router>

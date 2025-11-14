@@ -57,21 +57,20 @@ const hasAllPermissions = (permissionShortNames) => {
   return permissionShortNames.every(name => hasPermission(name));
 };
 
-
+// ============================================
+// USER PERMISSIONS
+// ============================================
 export const canViewUser = () => {
   return hasPermission("user_view");
 };
-
 
 export const canCreateUser = () => {
   return hasPermission("user_create");
 };
 
-
 export const canUpdateUser = () => {
   return hasPermission("user_update");
 };
-
 
 export const canDeleteUser = () => {
   return hasPermission("user_delete");
@@ -81,42 +80,62 @@ export const canRestoreUser = () => {
   return hasPermission("user_restore");
 };
 
-
+// ============================================
+// ROLE PERMISSIONS
+// ============================================
 export const canViewRole = () => {
   return hasPermission("role_view");
 };
-
 
 export const canCreateRole = () => {
   return hasPermission("role_create");
 };
 
-
 export const canUpdateRole = () => {
   return hasPermission("role_update");
 };
 
-
+// ============================================
+// CAMERA PERMISSIONS
+// ============================================
 export const canViewCamera = () => {
   return hasPermission("camera_view");
 };
-
 
 export const canCreateCamera = () => {
   return hasPermission("camera_create");
 };
 
-
 export const canUpdateCamera = () => {
   return hasPermission("camera_update");
 };
-
 
 export const canDeleteCamera = () => {
   return hasPermission("camera_delete");
 };
 
+// ============================================
+// APPLICATION PERMISSIONS
+// ============================================
+export const canViewApplication = () => {
+  return hasPermission("application_view");
+};
 
+export const canCreateApplication = () => {
+  return hasPermission("application_create");
+};
+
+export const canUpdateApplication = () => {
+  return hasPermission("application_update");
+};
+
+export const canDeleteApplication = () => {
+  return hasPermission("application_delete");
+};
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
 /**
  * Get all permission names user has
  * @returns {Array<string>} Array of permission short names

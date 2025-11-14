@@ -5,6 +5,7 @@ import {
   EyeOutlined,
   HddOutlined,
   ThunderboltOutlined,
+  AppstoreOutlined,
   SettingOutlined,
   LogoutOutlined
 } from '@ant-design/icons';
@@ -23,6 +24,7 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
     { key: '/dashboard/live-view', icon: <EyeOutlined />, label: 'Live View' },
     { key: '/dashboard/devices', icon: <HddOutlined />, label: 'Devices' },
     { key: '/dashboard/activity-log', icon: <ThunderboltOutlined />, label: 'Activity Log' },
+    { key: '/dashboard/application', icon: <AppstoreOutlined />, label: 'Application' },
     { key: '/dashboard/config', icon: <SettingOutlined />, label: 'Config' },
   ];
 
@@ -42,21 +44,30 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
   return (
     <>
       {/* Floating Sidebar */}
-       <div
-        style={{
-          position: 'fixed',
-          left: isOpen ? '24px' : '-100px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 1000, // zIndex is higher than the background overlay
+       
+        <div
+  style={{
+    position: 'fixed',
+    left: isOpen ? '24px' : '-100px', // Corrected this line for consistent alignment
+    top: window.innerWidth < 768 ? '88px' : '50%',
+    transform: window.innerWidth < 768 ? 'none' : 'translateY(-50%)',
+          zIndex: 1000,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center', // Added this line to align items in a straight vertical line
-          gap: '12px',
+          alignItems: 'center',
+          gap: '10px',
           transition: 'left 0.3s ease-out, opacity 0.3s ease-out',
           opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? 'auto' : 'none'
+          pointerEvents: isOpen ? 'auto' : 'none',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          overflowX: 'visible',
+          paddingTop: '8px',
+          paddingBottom: '8px',
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none' // IE and Edge
         }}
+        className="sidebar-scroll-hidden"
       >
         {menuItems.map((item, index) => (
           <div
@@ -101,12 +112,16 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
               })}
             </div>
             <div style={{
-              marginTop: '6px',
+              marginTop: '4px',
               textAlign: 'center',
-              fontSize: '11px',
+              fontSize: '10px',
               fontWeight: '500',
               color: colors.text.primary,
-              textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none'
+              textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '70px'
             }}>
               {item.label}
             </div>
@@ -115,7 +130,7 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
 
         <div
           style={{
-            marginTop: '8px',
+            marginTop: '6px',
             animation: isOpen ? `waterfallIn 0.4s ease-out ${menuItems.length * 0.08}s both` : 'none',
             opacity: isOpen ? 1 : 0
           }}
@@ -147,9 +162,9 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
             <LogoutOutlined style={{ fontSize: '22px', color: logoutBtn.color }} />
           </div>
           <div style={{
-            marginTop: '6px',
+            marginTop: '4px',
             textAlign: 'center',
-            fontSize: '11px',
+            fontSize: '10px',
             fontWeight: '500',
             color: colors.text.primary,
             textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none'
@@ -168,6 +183,11 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
               opacity: 1;
               transform: translateX(0) translateY(0);
             }
+          }
+          
+          /* Hide scrollbar for Chrome, Safari and Opera */
+          .sidebar-scroll-hidden::-webkit-scrollbar {
+            display: none;
           }
         `}
         </style>

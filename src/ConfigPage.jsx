@@ -237,6 +237,14 @@ const ConfigPage = ({ theme: themeProp }) => {
       })
     },
     {
+      title: 'Updated At',
+      dataIndex: 'updated_at',
+      key: 'updated_at',
+      render: (text) => new Date(text).toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      })
+    },
+    {
       title: 'Status',
       key: 'status',
       render: (_, r) => (

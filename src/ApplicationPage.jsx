@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Modal, Form, Input, Switch, Table, Tag, Tooltip, notification, Spin, Space, Typography, theme, Alert, Checkbox, Radio } from 'antd';
-import { AppstoreOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, LockOutlined, EyeOutlined, CameraOutlined, LinkOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Switch, Table, Tag, Tooltip, notification, Spin, Space, Typography, theme, Alert, Checkbox, Radio, Card, Descriptions, Divider } from 'antd';
+import { AppstoreOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, LockOutlined, EyeOutlined, CameraOutlined, LinkOutlined, CloseOutlined } from '@ant-design/icons';
 import { getApplications, createApplication, updateApplication, deleteApplication } from './services/applicationService';
 import { getCameras } from './services/cameraService';
 import { assignCameraToApplication, getApplicationCameras, removeApplicationCamera } from './services/applicationCameraService';
@@ -11,7 +11,7 @@ import {
   canDeleteApplication
 } from './utils/permissions';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const ApplicationPage = ({ theme: themeProp }) => {
@@ -30,6 +30,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
   const [primaryCamera, setPrimaryCamera] = useState(null);
   const [viewingApplicationCameras, setViewingApplicationCameras] = useState([]);
   const [assignLoading, setAssignLoading] = useState(false);
+  const [selectedCameraDetails, setSelectedCameraDetails] = useState(null);
   const [form] = Form.useForm();
 
   const hasAnyApplicationPermission = canViewApplication() || canCreateApplication() || canUpdateApplication() || canDeleteApplication();
@@ -187,20 +188,13 @@ const ApplicationPage = ({ theme: themeProp }) => {
         setEditingApplication(null);
         await fetchApplications();
       } else {
-        // Creating new application
         response = await createApplication(values);
-        console.log('Create application response:', response); // Debug log
-        
-        // Try different response formats
         const createdAppId = response?.application?.id || response?.data?.id || response?.id;
-        
-        console.log('Extracted application ID:', createdAppId); // Debug log
         
         setIsModalOpen(false);
         form.resetFields();
         
         if (createdAppId) {
-          // Show camera assignment confirmation dialog
           modal.confirm({
             title: 'Application Created Successfully!',
             content: 'Would you like to assign cameras to this application now?',
@@ -277,13 +271,11 @@ const ApplicationPage = ({ theme: themeProp }) => {
   const handleCameraSelection = (cameraId, checked) => {
     if (checked) {
       setSelectedCameras([...selectedCameras, cameraId]);
-      // If it's the first camera, make it primary by default
       if (selectedCameras.length === 0) {
         setPrimaryCamera(cameraId);
       }
     } else {
       setSelectedCameras(selectedCameras.filter(id => id !== cameraId));
-      // If removing the primary camera, reset primary
       if (primaryCamera === cameraId) {
         const remaining = selectedCameras.filter(id => id !== cameraId);
         setPrimaryCamera(remaining.length > 0 ? remaining[0] : null);
@@ -314,7 +306,6 @@ const ApplicationPage = ({ theme: themeProp }) => {
 
     setAssignLoading(true);
     try {
-      // Assign cameras one by one using the service
       const assignPromises = selectedCameras.map(cameraId => {
         const camera = cameras.find(c => c.id === cameraId);
         return assignCameraToApplication({
@@ -350,15 +341,10 @@ const ApplicationPage = ({ theme: themeProp }) => {
 
   const handleViewCameras = async (applicationId, applicationName) => {
     setLoading(true);
+    setSelectedCameraDetails(null); // Reset selected camera when viewing new application
     try {
       const response = await getApplicationCameras(applicationId);
-      console.log('=== VIEW CAMERAS DEBUG ===');
-      console.log('Full API response:', JSON.stringify(response, null, 2));
-      
-      // The API returns { count, links } where links contains the camera assignments
       const camerasData = response?.links || response?.application_cameras || response?.data || [];
-      console.log('Extracted cameras data:', camerasData);
-      console.log('Number of cameras:', camerasData.length);
       
       setViewingApplicationCameras(Array.isArray(camerasData) ? camerasData : []);
       setCurrentApplicationForCamera(applicationId);
@@ -376,10 +362,8 @@ const ApplicationPage = ({ theme: themeProp }) => {
 
   const handleAssignMoreCameras = () => {
     setIsViewCamerasModalOpen(false);
-    // Reset selections
     setSelectedCameras([]);
     setPrimaryCamera(null);
-    // Open assign modal
     setIsCameraAssignModalOpen(true);
   };
 
@@ -397,7 +381,10 @@ const ApplicationPage = ({ theme: themeProp }) => {
             message: 'Success',
             description: 'Camera removed successfully.'
           });
-          // Refresh the assigned cameras list
+          // Close the camera details card if it's the one being removed
+          if (selectedCameraDetails?.id === assignmentId) {
+            setSelectedCameraDetails(null);
+          }
           await handleViewCameras(currentApplicationForCamera);
         } catch (error) {
           console.error('Remove camera error:', error);
@@ -412,15 +399,20 @@ const ApplicationPage = ({ theme: themeProp }) => {
     });
   };
 
-  // Filter out already assigned cameras
+  const handleViewCameraDetails = (cameraRecord) => {
+    setSelectedCameraDetails(cameraRecord);
+  };
+
+  const handleCloseCameraDetails = () => {
+    setSelectedCameraDetails(null);
+  };
+
   const getAvailableCameras = () => {
     if (!currentApplicationForCamera) return cameras;
     
-    // Extract camera IDs from the links array (API structure: { camera_details: { id } })
     const assignedCameraIds = viewingApplicationCameras.map(ac => 
       ac.camera_details?.id || ac.camera?.id || ac.camera_id || ac.camera
     );
-    console.log('Assigned camera IDs:', assignedCameraIds);
     
     return cameras.filter(camera => !assignedCameraIds.includes(camera.id));
   };
@@ -515,47 +507,46 @@ const ApplicationPage = ({ theme: themeProp }) => {
         year: 'numeric'
       }) : '-'
     },
-   // In the columns definition, update the Actions column render function:
-{
-  title: 'Actions',
-  key: 'actions',
-  fixed: 'right',
-  width: 150,
-  render: (_, record) => (
-    <Space>
-      <Tooltip 
-        title="View/Manage Cameras" 
-        overlayInnerStyle={{ color: token.colorText }}
-        open={isViewCamerasModalOpen && currentApplicationForCamera === record.id ? false : undefined}
-      >
-        <Button
-          icon={<EyeOutlined />}
-          size="small"
-          onClick={() => handleViewCameras(record.id, record.name)}
-        />
-      </Tooltip>
-      {canUpdateApplication() && (
-        <Tooltip title="Edit" overlayInnerStyle={{ color: token.colorText }}>
-          <Button
-            icon={<EditOutlined />}
-            size="small"
-            onClick={() => openModal(record)}
-          />
-        </Tooltip>
-      )}
-      {canDeleteApplication() && (
-        <Tooltip title="Delete" overlayInnerStyle={{ color: token.colorText }}>
-          <Button
-            icon={<DeleteOutlined />}
-            size="small"
-            danger
-            onClick={() => handleDelete(record.id, record.name)}
-          />
-        </Tooltip>
-      )}
-    </Space>
-  )
-},
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 150,
+      render: (_, record) => (
+        <Space>
+          <Tooltip 
+            title="View/Manage Cameras" 
+            overlayInnerStyle={{ color: token.colorText }}
+            open={isViewCamerasModalOpen && currentApplicationForCamera === record.id ? false : undefined}
+          >
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => handleViewCameras(record.id, record.name)}
+            />
+          </Tooltip>
+          {canUpdateApplication() && (
+            <Tooltip title="Edit" overlayInnerStyle={{ color: token.colorText }}>
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => openModal(record)}
+              />
+            </Tooltip>
+          )}
+          {canDeleteApplication() && (
+            <Tooltip title="Delete" overlayInnerStyle={{ color: token.colorText }}>
+              <Button
+                icon={<DeleteOutlined />}
+                size="small"
+                danger
+                onClick={() => handleDelete(record.id, record.name)}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      )
+    },
   ];
 
   const viewCamerasColumns = [
@@ -593,24 +584,6 @@ const ApplicationPage = ({ theme: themeProp }) => {
         );
       }
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 100,
-      render: (_, record) => (
-        <Tooltip title="Remove Camera" overlayInnerStyle={{ color: token.colorText }}>
-          <Button
-            icon={<DeleteOutlined />}
-            size="small"
-            danger
-            onClick={() => handleRemoveAssignedCamera(
-              record.id, 
-              record.camera_details?.camera_name || record.camera_name || 'Camera'
-            )}
-          />
-        </Tooltip>
-      )
-    }
   ];
 
   return (
@@ -668,6 +641,14 @@ const ApplicationPage = ({ theme: themeProp }) => {
                   showTotal: (total) => `Total ${total} applications`
                 }}
                 scroll={{ x: true }}
+                onRow={(record) => ({
+                  onClick: (event) => {
+                    // This prevents the row click from firing when clicking on a button, link, or icon inside a button.
+                    if (event.target.closest('button, a')) return;
+                    handleViewCameras(record.id, record.name);
+                  },
+                  style: { cursor: 'pointer' },
+                })}
               />
             </>
           ) : (
@@ -855,7 +836,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
         </Spin>
       </Modal>
 
-      {/* View Assigned Cameras Modal */}
+      {/* View Assigned Cameras Modal with Camera View */}
       <Modal
         title={
           <Space>
@@ -867,6 +848,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
         onCancel={() => {
           setIsViewCamerasModalOpen(false);
           setCurrentApplicationForCamera(null);
+          setSelectedCameraDetails(null);
         }}
         footer={[
           <Button 
@@ -882,31 +864,125 @@ const ApplicationPage = ({ theme: themeProp }) => {
             onClick={() => {
               setIsViewCamerasModalOpen(false);
               setCurrentApplicationForCamera(null);
+              setSelectedCameraDetails(null);
             }}
           >
             Close
           </Button>
         ]}
-        width={800}
+        width={1000}
+        styles={{ body: { paddingTop: 24 } }}
       >
         <Spin spinning={loading}>
-          {viewingApplicationCameras.length === 0 ? (
-            <Alert
-              message="No Cameras Assigned"
-              description="This application has no cameras assigned yet. Click 'Assign More Cameras' to add cameras."
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          ) : (
-            <Table
-              columns={viewCamerasColumns}
-              dataSource={viewingApplicationCameras}
-              rowKey="id"
-              pagination={false}
-              style={{ marginTop: 16 }}
-            />
-          )}
+          <div style={{ display: 'flex', gap: 24 }}>
+            {/* Cameras List */}
+            <div style={{
+              width: selectedCameraDetails ? '60%' : '100%',
+              transition: 'width 0.3s ease-in-out'
+            }}>
+              {viewingApplicationCameras.length === 0 ? (
+                <Alert
+                  message="No Cameras Assigned"
+                  description="This application has no cameras assigned yet. Click 'Assign More Cameras' to add some."
+                  type="info"
+                  showIcon
+                />
+              ) : (
+                <Table
+                  columns={viewCamerasColumns}
+                  dataSource={viewingApplicationCameras}
+                  rowKey="id"
+                  pagination={false}
+                  rowClassName={(record) => 
+                    selectedCameraDetails?.id === record.id ? 'ant-table-row-selected' : ''
+                  }
+                  onRow={(record) => ({
+                    onClick: () => {
+                      handleViewCameraDetails(record);
+                    },
+                    style: { cursor: 'pointer' },
+                  })}
+                />
+              )}
+            </div>
+
+            {/* Simplified Camera View Panel */}
+            <div style={{
+              width: selectedCameraDetails ? '40%' : '0%',
+              opacity: selectedCameraDetails ? 1 : 0,
+              transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out 0.1s',
+              overflow: 'hidden'
+            }}>
+              {selectedCameraDetails && (
+                <div style={{ 
+                  border: `1px solid ${token.colorBorder}`, 
+                  borderRadius: token.borderRadiusLG, 
+                  backgroundColor: token.colorBgContainer 
+                }}>
+                  {/* Custom Card Header */}
+                  <div style={{
+                    padding: '12px 16px',
+                    borderBottom: `1px solid ${token.colorSplit}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <Text strong>
+                      {selectedCameraDetails.camera_details?.camera_name || 'Camera View'}
+                    </Text>
+                    <Space>
+                      <Tooltip title="Remove Camera">
+                        <Button
+                          danger
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveAssignedCamera(
+                            selectedCameraDetails.id,
+                            selectedCameraDetails.camera_details?.camera_name || 'Camera'
+                          )}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Close View">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<CloseOutlined />}
+                          onClick={handleCloseCameraDetails}
+                        />
+                      </Tooltip>
+                    </Space>
+                  </div>
+                  
+                  {/* Card Body */}
+                  <div style={{ padding: 16 }}>
+                    {selectedCameraDetails.camera_details?.webrtc_url ? (
+                      <iframe
+                        src={selectedCameraDetails.camera_details.webrtc_url}
+                        title={selectedCameraDetails.camera_details?.camera_name || 'Camera View'}
+                        style={{ 
+                          width: '100%', 
+                          aspectRatio: '16 / 9', 
+                          border: 'none', 
+                          backgroundColor: '#000',
+                          borderRadius: token.borderRadius
+                        }}
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <Alert
+                        message="Live View Not Available"
+                        description="A WebRTC URL for this camera has not been configured."
+                        type="warning"
+                        showIcon
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </Spin>
       </Modal>
     </div>

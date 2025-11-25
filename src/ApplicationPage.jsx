@@ -335,11 +335,20 @@ const handleDeleteDevice = async (deviceId, deviceName) => {
 
   // ========= DEVICE MODAL =========
 
-  const openDeviceModal = () => {
+ const openDeviceModal = () => {
     deviceForm.resetFields();
-    setPayloadObj({});
+    
+    // IMPORTANT FIXES:
+    setSelectedDeviceDetails(null);   // ← CLEAR EDIT MODE
+    setPayloadObj({});                // ← EMPTY PAYLOAD
+    setShowPayloadBuilder(false);     // ← RESET MODAL IF OPEN
+
+    // FORCE JsonBuilder to load fresh
+    setTimeout(() => setPayloadObj({}), 0);
+
     setIsDeviceModalOpen(true);
-  };
+};
+
 
  const handleDeviceFormSubmit = async (values) => {
   const appId = selectedApplication?.id || pendingDevicePromptAppId;

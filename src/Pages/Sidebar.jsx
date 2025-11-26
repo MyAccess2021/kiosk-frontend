@@ -9,8 +9,8 @@ import {
   SettingOutlined,
   LogoutOutlined
 } from '@ant-design/icons';
-import { buttonStyles } from './utils/buttonStyles';
-import { themeConfig } from './utils/themeConfig';
+import { buttonStyles } from '../utils/buttonStyles';
+import { themeConfig } from '../utils/themeConfig';
 
 const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
   const menuItems = [
     { key: '/dashboard/home', icon: <HomeOutlined />, label: 'Home' },
     { key: '/dashboard/live-view', icon: <EyeOutlined />, label: 'Live View' },
-    // { key: '/dashboard/devices', icon: <HddOutlined />, label: 'Devices' },
+    { key: '/dashboard/devices', icon: <HddOutlined />, label: 'Devices' },
     { key: '/dashboard/activity-log', icon: <ThunderboltOutlined />, label: 'Activity Log' },
     { key: '/dashboard/application', icon: <AppstoreOutlined />, label: 'Application' },
     { key: '/dashboard/config', icon: <SettingOutlined />, label: 'Config' },

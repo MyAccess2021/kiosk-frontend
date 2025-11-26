@@ -3,14 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ConfigProvider as AntdConfigProvider, theme as antdTheme } from 'antd';
 import { themeConfig } from './utils/themeConfig';
 
-import Dashboard from './Dashboard';
-import LoginPage from './LoginPage';
-import HomePage from './HomePage';
-import LiveViewPage from './LiveViewPage';
-import DevicesPage from './DevicesPage';
-import ActivityLogPage from './ActivityLogPage';
-import ConfigPage from './ConfigPage';
-import ApplicationPage from './ApplicationPage';
+import Dashboard from './Pages/Dashboard.jsx';
+import LoginPage from './Pages/LoginPage.jsx';
+import HomePage from './Pages/HomePage.jsx';
+import LiveViewPage from './Pages/LiveViewPage.jsx';
+import DevicesPage from './Pages/DevicesPage.jsx';
+import ActivityLogPage from './Pages/ActivityLogPage.jsx';
+import ConfigPage from './Pages/ConfigPage.jsx';
+import ApplicationPage from './Pages/ApplicationPage.jsx';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('accessToken');

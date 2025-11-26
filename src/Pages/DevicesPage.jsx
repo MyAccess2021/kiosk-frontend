@@ -27,8 +27,8 @@ import {
   createDevice,
   updateDevice,
   deleteDevice,
-} from './services/deviceService';
-import { getApplications } from './services/applicationService';
+} from '../services/deviceService';
+import { getApplications } from '../services/applicationService';
 import JsonBuilderComponent from './JsonBuilderComponent';
 
 const { Title } = Typography;

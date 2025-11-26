@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { login } from './services/authService';
+import { login } from '../services/authService';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({ email_or_mobile: '', password: '' });

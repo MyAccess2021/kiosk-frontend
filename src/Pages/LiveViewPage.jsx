@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Modal, Form, Input, Select, Switch, Table, Tag, Tooltip, notification, Spin, Empty, Tabs, Space, Typography, theme, Row, Col, Alert } from 'antd';
 import { VideoCameraOutlined, UnorderedListOutlined, PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, EyeOutlined, LockOutlined } from '@ant-design/icons';
-import { getCameras, createCamera, updateCamera, deleteCamera } from './services/cameraService';
+import { getCameras, createCamera, updateCamera, deleteCamera } from '../services/cameraService';
 import {
   canViewCamera,
   canCreateCamera,
   canUpdateCamera,
   canDeleteCamera
-} from './utils/permissions';
+} from '../utils/permissions';
 
 const { Option } = Select;
 const { Title } = Typography;

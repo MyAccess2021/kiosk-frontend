@@ -20,6 +20,7 @@ import {
   Card,
   Descriptions,
   Popconfirm,
+  Select,
 } from 'antd';
 import {
   PlusOutlined,
@@ -34,16 +35,16 @@ import {
   ArrowLeftOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
-import { getApplications, createApplication, updateApplication, deleteApplication } from './services/applicationService';
-import { getCameras } from './services/cameraService';
-import { assignCameraToApplication, getApplicationCameras, removeApplicationCamera } from './services/applicationCameraService';
-import { createDevice, getDevices, updateDevice, deleteDevice } from './services/deviceService';
+import { getApplications, createApplication, updateApplication, deleteApplication } from '../services/applicationService';
+import { getCameras } from '../services/cameraService';
+import { assignCameraToApplication, getApplicationCameras, removeApplicationCamera, updateApplicationCamera } from '../services/applicationCameraService';
+import { createDevice, getDevices, updateDevice, deleteDevice } from '../services/deviceService';
 import {
   canViewApplication,
   canCreateApplication,
   canUpdateApplication,
   canDeleteApplication,
-} from './utils/permissions';
+} from '../utils/permissions';
 import JsonBuilderComponent from "./JsonBuilderComponent";
 
 const { Title, Text } = Typography;
@@ -84,6 +85,8 @@ const ApplicationPage = ({ theme: themeProp }) => {
   const [payloadObj, setPayloadObj] = useState({});
   const [viewingApplicationDevices, setViewingApplicationDevices] = useState([]);
   const [selectedDeviceDetails, setSelectedDeviceDetails] = useState(null);
+  const [isEditingDevice, setIsEditingDevice] = useState(false);
+
   // Add a new modal state for editing
 const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -299,18 +302,35 @@ useEffect(() => {
     });
   };
 const handleEditDevice = (device) => {
-  deviceForm.setFieldsValue({
-    device_uid: device.device_uid,
-    device_name: device.device_name,
-    description: device.description,
-    protocol: device.protocol,
-    firmware_version: device.firmware_version,
-    development_enabled: device.development_enabled,
-  });
-  setPayloadObj(device.payload || {});
-  setSelectedDeviceDetails(device); // Use this to track we're editing
-  setIsDeviceModalOpen(true);
+ 
+  
+  // ✅ Close detail panel and close modal first
+  setSelectedDeviceDetails(null);
+  setIsDeviceModalOpen(false);
+  
+  // ✅ Then set edit mode after a brief delay
+  setTimeout(() => {
+    setIsEditingDevice(true);
+    
+    deviceForm.setFieldsValue({
+      device_uid: device.device_uid,
+      device_name: device.device_name,
+      description: device.description,
+      protocol: device.protocol,
+      firmware_version: device.firmware_version,
+      development_enabled: device.development_enabled,
+    });
+
+    const devicePayload = device.payload || {};
+    setPayloadObj(devicePayload);
+    
+    window.editingDeviceId = device.id;
+    
+    setIsDeviceModalOpen(true);
+  }, 50);
 };
+
+
 
 const handleDeleteDevice = async (deviceId, deviceName) => {
   setLoading(true);
@@ -335,54 +355,70 @@ const handleDeleteDevice = async (deviceId, deviceName) => {
 
   // ========= DEVICE MODAL =========
 
- const openDeviceModal = () => {
-    deviceForm.resetFields();
+const openDeviceModal = () => {
+    // ✅ Reset all states for CREATE mode
+    setSelectedDeviceDetails(null);
+    setIsEditingDevice(false);
+    setIsDeviceModalOpen(false); // Close first
     
-    // IMPORTANT FIXES:
-    setSelectedDeviceDetails(null);   // ← CLEAR EDIT MODE
-    setPayloadObj({});                // ← EMPTY PAYLOAD
-    setShowPayloadBuilder(false);     // ← RESET MODAL IF OPEN
-
-    // FORCE JsonBuilder to load fresh
-    setTimeout(() => setPayloadObj({}), 0);
-
-    setIsDeviceModalOpen(true);
+    deviceForm.resetFields();
+    setPayloadObj({});
+    setShowPayloadBuilder(false);
+    
+    // ✅ Open modal after a brief delay to ensure clean state
+    setTimeout(() => {
+        setIsDeviceModalOpen(true);
+    }, 100);
 };
 
-
- const handleDeviceFormSubmit = async (values) => {
+const handleDeviceFormSubmit = async (values) => {
   const appId = selectedApplication?.id || pendingDevicePromptAppId;
   if (!appId) {
     notification.error({ message: 'No Application Selected', description: 'Missing application reference.' });
     return;
   }
 
-  const payload = {
-    application: appId,
-    device_uid: values.device_uid,
-    device_name: values.device_name,
-    description: values.description || '',
-    protocol: values.protocol || 'websocket',
-    firmware_version: values.firmware_version || '',
-    development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
-    ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
-  };
+  const editingDeviceId = window.editingDeviceId;
+  const isEditing = isEditingDevice && editingDeviceId;
+
+  const payload = isEditing
+    ? {
+        device_name: values.device_name,
+        description: values.description || '',
+        protocol: values.protocol || 'websocket',
+        firmware_version: values.firmware_version || '',
+        development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
+        ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
+      }
+    : {
+        application: appId,
+        device_uid: values.device_uid,
+        device_name: values.device_name,
+        description: values.description || '',
+        protocol: values.protocol || 'websocket',
+        firmware_version: values.firmware_version || '',
+        development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
+        ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
+      };
 
   setDeviceSubmitting(true);
   try {
-    // Check if we're editing (selectedDeviceDetails will be set)
-    if (selectedDeviceDetails?.id) {
-      await updateDevice(selectedDeviceDetails.id, payload);
+    if (isEditing) {
+      await updateDevice(editingDeviceId, payload);
       notification.success({ message: 'Device updated successfully' });
     } else {
       await createDevice(payload);
       notification.success({ message: 'Device created successfully' });
     }
     
+    // ✅ Clean up
     setIsDeviceModalOpen(false);
     deviceForm.resetFields();
     setPayloadObj({});
-    setSelectedDeviceDetails(null); // Clear editing state
+    setIsEditingDevice(false);
+    window.editingDeviceId = null;
+    // ✅ DON'T clear selectedDeviceDetails - just close modal
+    // setSelectedDeviceDetails(null); // REMOVE THIS LINE
     
     if (viewMode === 'detail' && selectedApplication) {
       await fetchApplicationDetails(selectedApplication.id);
@@ -516,64 +552,78 @@ const handleDeleteDevice = async (deviceId, deviceName) => {
   };
 
   const handleCameraSelection = (cameraId, checked) => {
-    if (checked) {
-      const newList = [...selectedCameras, cameraId];
-      setSelectedCameras(newList);
-      if (selectedCameras.length === 0) setPrimaryCamera(cameraId);
-    } else {
-      const remaining = selectedCameras.filter((id) => id !== cameraId);
-      setSelectedCameras(remaining);
-      if (primaryCamera === cameraId) setPrimaryCamera(remaining.length > 0 ? remaining[0] : null);
+  if (checked) {
+    const newList = [...selectedCameras, cameraId];
+    setSelectedCameras(newList);
+    // Don't auto-set primary - user must explicitly select it
+  } else {
+    const remaining = selectedCameras.filter((id) => id !== cameraId);
+    setSelectedCameras(remaining);
+    if (primaryCamera === cameraId) {
+      setPrimaryCamera(null); // Clear primary if this camera was primary
     }
-  };
+  }
+};
 
-  const handlePrimaryCameraChange = (cameraId) => setPrimaryCamera(cameraId);
+ const handlePrimaryCameraChange = (cameraId) => {
+ 
+  setPrimaryCamera(cameraId);
+};
 
-  const handleAssignCameras = async () => {
-    if (selectedCameras.length === 0) {
-      notification.warning({ message: 'No Cameras Selected', description: 'Please select at least one camera.' });
-      return;
-    }
-    if (!primaryCamera) {
-      notification.warning({ message: 'No Primary Camera', description: 'Please select a primary camera.' });
-      return;
-    }
+const handleAssignCameras = async () => {
+  if (selectedCameras.length === 0) {
+    notification.warning({ message: 'No Cameras Selected', description: 'Please select at least one camera.' });
+    return;
+  }
 
-    const appId = selectedApplication?.id || pendingDevicePromptAppId;
-    if (!appId) return;
+  const appId = selectedApplication?.id || pendingDevicePromptAppId;
+  if (!appId) return;
 
-    setAssignLoading(true);
-    try {
-      const assignPromises = selectedCameras.map((cameraId) => {
-        const camera = cameras.find((c) => c.id === cameraId);
-        return assignCameraToApplication({
-          application: appId,
-          camera: cameraId,
-          description: camera?.camera_name || '',
-          is_primary: cameraId === primaryCamera,
-        });
-      });
-      await Promise.all(assignPromises);
-      notification.success({ message: 'Success', description: `${selectedCameras.length} camera(s) assigned!` });
-
-      setIsCameraAssignModalOpen(false);
-      setSelectedCameras([]);
-      setPrimaryCamera(null);
-
-      if (viewMode === 'detail' && selectedApplication) {
-        await fetchApplicationDetails(selectedApplication.id);
-      } else if (pendingDevicePromptAppId) {
-        await fetchApplications();
-        openDevicePromptForNewApp(pendingDevicePromptAppId);
-        setPendingDevicePromptAppId(null);
+  setAssignLoading(true);
+  try {
+    // ✅ ONLY if user selected a new primary, update all existing cameras to false
+    if (primaryCamera) {
+      const existingCameras = viewingApplicationCameras;
+      if (existingCameras.length > 0) {
+        const updatePromises = existingCameras.map((cam) =>
+          updateApplicationCamera(cam.id, { is_primary: false })
+        );
+        await Promise.all(updatePromises);
       }
-    } catch (error) {
-      console.error('Camera assignment error:', error);
-      notification.error({ message: 'Assignment Failed', description: error.message || 'Failed to assign cameras.' });
-    } finally {
-      setAssignLoading(false);
     }
-  };
+
+    // ✅ Assign new cameras
+    const assignPromises = selectedCameras.map((cameraId) => {
+      const camera = cameras.find((c) => c.id === cameraId);
+      return assignCameraToApplication({
+        application: appId,
+        camera: cameraId,
+        description: camera?.camera_name || '',
+        is_primary: cameraId === primaryCamera, // true only if this is the selected primary
+      });
+    });
+    await Promise.all(assignPromises);
+    
+    notification.success({ message: 'Success', description: `${selectedCameras.length} camera(s) assigned!` });
+
+    setIsCameraAssignModalOpen(false);
+    setSelectedCameras([]);
+    setPrimaryCamera(null);
+
+    if (viewMode === 'detail' && selectedApplication) {
+      await fetchApplicationDetails(selectedApplication.id);
+    } else if (pendingDevicePromptAppId) {
+      await fetchApplications();
+      openDevicePromptForNewApp(pendingDevicePromptAppId);
+      setPendingDevicePromptAppId(null);
+    }
+  } catch (error) {
+    console.error('Camera assignment error:', error);
+    notification.error({ message: 'Assignment Failed', description: error.message || 'Failed to assign cameras.' });
+  } finally {
+    setAssignLoading(false);
+  }
+};
 
   const handleRemoveAssignedCamera = (assignmentId, cameraName) => {
     modal.confirm({
@@ -688,7 +738,14 @@ const handleDeleteDevice = async (deviceId, deviceName) => {
       size="small" 
       danger 
       icon={<DeleteOutlined />}
-      onClick={() => handleRemoveAssignedCamera(record.id, record.camera_details?.camera_name || 'Camera')}
+      onClick={(e) => {
+  e.stopPropagation();   // <-- IMPORTANT FIX
+  handleRemoveAssignedCamera(
+    record.id,
+    record.camera_details?.camera_name || "Camera"
+  );
+}}
+
     />
   ),
 },
@@ -728,33 +785,51 @@ const viewDevicesColumns = [
       </Space>
     ),
   },
-  {
-    title: 'Actions',
-    key: 'actions',
-    width: 100,
-    // fixed: 'right',
-    render: (_, record) => (
-      <Space size={4}>
-        <Tooltip >
-          <Button 
-            size="small" 
-            icon={<EditOutlined />}
-            onClick={() => handleEditDevice(record)}
-          />
-        </Tooltip>
-        <Popconfirm
-          title="Delete this device?"
-          description="This action cannot be undone."
-          onConfirm={() => handleDeleteDevice(record.id, record.device_name)}
-          okText="Delete"
-          okType="danger"
-          cancelText="Cancel"
-        >
-          <Button size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      </Space>
-    ),
-  },
+ {
+  title: 'Actions',
+  key: 'actions',
+  width: 100,
+  className: 'actions-column', // ✅ Add this class
+  render: (_, record) => (
+    <Space size={4}>
+      
+      {/* EDIT BUTTON */}
+      <Tooltip >
+        <Button 
+          size="small"
+          icon={<EditOutlined />}
+          onClick={(e) => {
+            e.stopPropagation(); // Stop event bubbling
+            handleEditDevice(record);
+          }}
+        />
+      </Tooltip>
+
+      {/* DELETE BUTTON */}
+      <Tooltip >
+        <Button
+          size="small"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={(e) => {
+            e.stopPropagation(); // Stop event bubbling
+
+            modal.confirm({
+              title: `Delete ${record.device_name}?`,
+              content: "This action cannot be undone.",
+              okText: "Delete",
+              okType: "danger",
+              cancelText: "Cancel",
+              onOk: () => handleDeleteDevice(record.id, record.device_name)
+            });
+          }}
+        />
+      </Tooltip>
+      
+    </Space>
+  ),
+}
+
 ];
 
   // ========= RENDER =========
@@ -833,18 +908,22 @@ const viewDevicesColumns = [
     <div style={{ display: 'flex', gap: 24, flexDirection: isMobile ? 'column' : 'row' }}>
       <div style={{ width: !isMobile && selectedCameraDetails ? '60%' : '100%', transition: 'width 0.3s' }}>
         <Table
-          columns={viewCamerasColumns}
-          dataSource={viewingApplicationCameras}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          scroll={{ x: 400 }}
-          rowClassName={(record) => selectedCameraDetails?.id === record.id ? 'ant-table-row-selected' : ''}
-          onRow={(record) => ({
-            onClick: () => setSelectedCameraDetails(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
+  columns={viewCamerasColumns}
+  dataSource={[...viewingApplicationCameras].sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return 0;
+  })}
+  rowKey="id"
+  pagination={false}
+  size="small"
+  scroll={{ x: 400 }}
+  rowClassName={(record) => selectedCameraDetails?.id === record.id ? 'ant-table-row-selected' : ''}
+  onRow={(record) => ({
+    onClick: () => setSelectedCameraDetails(record),
+    style: { cursor: 'pointer' },
+  })}
+/>
       </div>
       {!isMobile && selectedCameraDetails && (
         <div style={{ width: '40%', transition: 'width 0.3s' }}>
@@ -883,19 +962,30 @@ const viewDevicesColumns = [
   ) : (
     <div style={{ display: 'flex', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
       <div style={{ width: !isMobile && selectedDeviceDetails ? '65%' : '100%', transition: 'width 0.3s' }}>
-        <Table
-          columns={viewDevicesColumns}
-          dataSource={viewingApplicationDevices}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          scroll={{ x: 400 }}
-          rowClassName={(record) => selectedDeviceDetails?.id === record.id ? 'ant-table-row-selected' : ''}
-          onRow={(record) => ({
-            onClick: () => setSelectedDeviceDetails(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
+   <Table
+  columns={viewDevicesColumns}
+  dataSource={viewingApplicationDevices}
+  rowKey="id"
+  pagination={false}
+  size="small"
+  scroll={{ x: 400 }}
+  rowClassName={(record) => selectedDeviceDetails?.id === record.id ? 'ant-table-row-selected' : ''}
+  onRow={(record) => ({
+    onClick: (e) => {
+      // ✅ Don't open details if clicking in actions column
+      const clickedCell = e.target.closest('.ant-table-cell');
+      if (clickedCell?.classList.contains('actions-column')) {
+        return; // Exit early if clicking actions column
+      }
+      
+      // ✅ REMOVED the conditions that were blocking clicks
+      // Just set the device details directly
+      setIsEditingDevice(false);  // Ensure we're not in edit mode
+      setSelectedDeviceDetails(record);
+    },
+    style: { cursor: 'pointer' },
+  })}
+/>
       </div>
       {!isMobile && selectedDeviceDetails && (
         <div style={{ width: '35%', transition: 'width 0.3s' }}>
@@ -980,7 +1070,7 @@ const viewDevicesColumns = [
 {/* Device Details Modal - Mobile Only */}
 <Modal
   title={selectedDeviceDetails?.device_name || 'Device Details'}
- open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen}
+open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEditingDevice}
   onCancel={() => setSelectedDeviceDetails(null)}
   footer={[
     <Button key="close" onClick={() => setSelectedDeviceDetails(null)}>Close</Button>
@@ -1129,23 +1219,28 @@ const viewDevicesColumns = [
                               <Tag color={camera.is_active ? 'success' : 'error'}>{camera.is_active ? 'Active' : 'Inactive'}</Tag>
                             </div>
                           </div>
-                          {selectedCameras.includes(camera.id) && (
-                            <Radio checked={primaryCamera === camera.id} onChange={() => handlePrimaryCameraChange(camera.id)} style={{ marginLeft: 16 }}>
-                              Primary
-                            </Radio>
-                          )}
+                    {selectedCameras.includes(camera.id) && (
+  <Radio.Group 
+    value={primaryCamera} 
+    onChange={(e) => handlePrimaryCameraChange(e.target.value)}
+  >
+    <Radio value={camera.id} style={{ marginLeft: 16 }}>
+      Primary
+    </Radio>
+  </Radio.Group>
+)}
                         </div>
                       </div>
                     ))}
                   </div>
                   {selectedCameras.length > 0 && (
-                    <Alert
-                      message={`${selectedCameras.length} camera(s) selected${primaryCamera ? '. Primary set.' : '. Select a primary camera.'}`}
-                      type={primaryCamera ? 'success' : 'warning'}
-                      showIcon
-                      style={{ marginTop: 16 }}
-                    />
-                  )}
+  <Alert
+    message={`${selectedCameras.length} camera(s) selected${primaryCamera ? `. Primary: ${cameras.find(c => c.id === primaryCamera)?.camera_name || 'Set'}` : '. (Optional: Select a primary camera)'}`}
+    type="info"
+    showIcon
+    style={{ marginTop: 16 }}
+  />
+)}
                 </>
               )}
             </div>
@@ -1153,14 +1248,18 @@ const viewDevicesColumns = [
         </Modal>
 
         {/* Device Modal */}
-        <Modal
-  title={selectedDeviceDetails?.id ? "Edit Device" : "Create Device"}
+       
+<Modal
+  title={isEditingDevice ? "Edit Device" : "Create Device"}
   open={isDeviceModalOpen}
   onCancel={() => { 
     setIsDeviceModalOpen(false); 
+    setIsEditingDevice(false);
+    window.editingDeviceId = null;
     deviceForm.resetFields(); 
-    setPayloadObj({}); 
-    setSelectedDeviceDetails(null); // Clear editing state
+    setPayloadObj({});
+    // ✅ DON'T clear selectedDeviceDetails here - let user click devices again
+    // setSelectedDeviceDetails(null); // REMOVE THIS LINE
   }}
   footer={null}
   width={600}
@@ -1175,9 +1274,16 @@ const viewDevicesColumns = [
             <Form.Item name="description" label="Description">
               <TextArea rows={3} placeholder="Controls fan & lights" />
             </Form.Item>
-            <Form.Item name="protocol" label="Protocol" initialValue="websocket" rules={[{ required: true }]}>
-              <Input placeholder="websocket" />
-            </Form.Item>
+           <Form.Item
+  name="protocol"
+  label="Protocol"
+  rules={[{ required: true, message: 'Please select protocol' }]}
+>
+  <Select placeholder="Select protocol">
+    <Select.Option value="websocket">WebSocket</Select.Option>
+    <Select.Option value="http">HTTP</Select.Option>
+  </Select>
+</Form.Item>
             <Form.Item name="firmware_version" label="Firmware Version">
               <Input placeholder="v1.0.2" />
             </Form.Item>
@@ -1195,8 +1301,8 @@ const viewDevicesColumns = [
             <div style={{ textAlign: 'right' }}>
               <Space>
                 <Button onClick={() => { setIsDeviceModalOpen(false); deviceForm.resetFields(); setPayloadObj({}); }}>Cancel</Button>
-                <Button type="primary" htmlType="submit" loading={deviceSubmitting}>
-  {selectedDeviceDetails?.id ? 'Update Device' : 'Create Device'}
+             <Button type="primary" htmlType="submit" loading={deviceSubmitting}>
+  {isEditingDevice ? 'Update Device' : 'Create Device'} 
 </Button>
               </Space>
             </div>
@@ -1346,7 +1452,7 @@ const viewDevicesColumns = [
               <Alert message="No Cameras Available" description="No cameras available. Please add cameras first." type="info" showIcon />
             ) : (
               <>
-                <Alert message="Select cameras and choose a primary camera." type="info" showIcon style={{ marginBottom: 16 }} />
+                <Alert message="Select cameras. Optionally choose one as primary." type="info" showIcon style={{ marginBottom: 16 }} />
                 <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                   {cameras.map((camera) => (
                     <div

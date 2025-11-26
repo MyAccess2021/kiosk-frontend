@@ -19,7 +19,7 @@ import {
   SafetyOutlined,
   BellOutlined
 } from '@ant-design/icons';
-import { buttonStyles, getButtonStyle } from './utils/buttonStyles';
+import { buttonStyles, getButtonStyle } from '../utils/buttonStyles';
 
 // Styled Button Component that uses buttonStyles.js
 const StyledButton = ({ type = 'primary', theme, children, icon, onClick, size = 'middle', ...props }) => {

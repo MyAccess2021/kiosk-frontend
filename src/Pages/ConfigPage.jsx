@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Modal, Form, Input, Select, Table, Tag, Tooltip, theme, notification, Spin, Checkbox, Row, Col, Typography, Space, Tabs, Alert } from 'antd';
 import { UserOutlined, SafetyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined, EyeInvisibleOutlined, CheckOutlined, UserAddOutlined, LockOutlined } from '@ant-design/icons';
-import { getUsers, createUser, updateUser, deleteUser, restoreUser, getRoles, createRole, updateRole, getPermissions } from './services/configService';
+import { getUsers, createUser, updateUser, deleteUser, restoreUser, getRoles, createRole, updateRole, getPermissions } from '../services/configService';
 import {
   canViewUser,
   canCreateUser,
@@ -11,7 +11,7 @@ import {
   canViewRole,
   canCreateRole,
   canUpdateRole
-} from './utils/permissions';
+} from '../utils/permissions';
 
 const { Option } = Select;
 const { Title } = Typography;

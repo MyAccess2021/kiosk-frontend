@@ -9,8 +9,8 @@ import {
   SettingOutlined,
   LogoutOutlined
 } from '@ant-design/icons';
-import { buttonStyles } from './utils/buttonStyles';
-import { themeConfig } from './utils/themeConfig';
+import { buttonStyles } from '../utils/buttonStyles';
+import { themeConfig } from '../utils/themeConfig';
 
 const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
   const navigate = useNavigate();

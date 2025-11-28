@@ -46,9 +46,40 @@ import {
   canDeleteApplication,
 } from '../utils/permissions';
 import JsonBuilderComponent from "./JsonBuilderComponent";
+import { createDeviceWebSocket } from "../services/websocketService";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
+// Helper to apply WebSocket updates to a JSON object based on path
+const applyPayloadUpdate = (currentPayload, path, newValue) => {
+  // Deep clone to ensure React detects state change
+  const newPayload = JSON.parse(JSON.stringify(currentPayload || {}));
+
+  // ROOT update - replace entire payload
+  if (!path || path === "" || path === "/") {
+    return JSON.parse(JSON.stringify(newValue));
+  }
+
+  // NESTED update
+  const keys = path.split("/").filter(k => k); // Remove empty strings
+  let pointer = newPayload;
+
+  keys.forEach((key, index) => {
+    if (index === keys.length - 1) {
+      // Final level → apply update
+      pointer[key] = newValue;
+    } else {
+      // Go deeper OR create empty object if missing
+      if (!pointer[key] || typeof pointer[key] !== "object") {
+        pointer[key] = {};
+      }
+      pointer = pointer[key];
+    }
+  });
+
+  return newPayload;
+};
 
 const ApplicationPage = ({ theme: themeProp }) => {
   const { token } = theme.useToken();
@@ -88,8 +119,87 @@ const ApplicationPage = ({ theme: themeProp }) => {
   const [isEditingDevice, setIsEditingDevice] = useState(false);
 
   // Add a new modal state for editing
-const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [ws, setWs] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // WS: Receive messages
+  const handleWsMessage = (data) => {
+    // If GET response (full payload)
+    if (data.action === "get" && data.status === "ok") {
+      console.log("✅ GET response, updating payload:", data.payload);
+      const freshPayload = JSON.parse(JSON.stringify(data.payload));
+      
+      // Update both states atomically
+      setPayloadObj(freshPayload);
+      setSelectedDeviceDetails(prev =>
+        prev ? { ...prev, payload: freshPayload } : prev
+      );
+      
+      return;
+    }
+
+    // If live update event
+    if (data.type === "device_event" && data.event === "value_changed") {
+      console.log("🔴 LIVE UPDATE EVENT - path:", data.path, "payload:", data.payload);
+
+      // 1. ALWAYS update the Payload Object (This drives the Builder/Edit Modal)
+      setPayloadObj((prev) => applyPayloadUpdate(prev, data.path, data.payload));
+
+      // 2. CONDITIONALLY update Selected Device Details (This drives the View Card)
+      // Only runs if a device is currently selected in view mode
+      setSelectedDeviceDetails((prev) => {
+        if (!prev) return prev;
+        const updatedPayload = applyPayloadUpdate(prev.payload, data.path, data.payload);
+        return { ...prev, payload: updatedPayload };
+      });
+    }
+  };
+
+  const connectWebSocket = (deviceToken) => {
+    if (ws) {
+      try { ws.close(); } catch {}
+    }
+
+    const socket = createDeviceWebSocket(deviceToken, {
+      onOpen: () => setWsConnected(true),
+      onClose: () => setWsConnected(false),
+      onMessage: handleWsMessage,
+      onError: () => setWsConnected(false),
+    });
+
+    setWs(socket);
+    return socket; // ✅ RETURN THE SOCKET INSTANCE
+  };
+
+  const sendPut = (path, payload) => {
+    if (!ws || !wsConnected) {
+      if (Object.keys(payload).length > 0) {
+        notification.warning({
+          message: "WebSocket Not Connected",
+          description: "Changes are saved locally but not sent to device until connected.",
+        });
+      }
+      return;
+    }
+
+    ws.send(
+      JSON.stringify({
+        action: "put",
+        path: path || "",
+        payload,
+      })
+    );
+  };
+
+  useEffect(() => {
+    return () => {
+      if (ws) {
+        try { ws.close(); } catch {}
+      }
+    };
+  }, []);
 
   const hasAnyApplicationPermission =
     canViewApplication() || canCreateApplication() || canUpdateApplication() || canDeleteApplication();
@@ -125,14 +235,16 @@ const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
       notification.error({ message: 'Fetch Failed', description: 'Failed to fetch cameras.' });
     }
   }, []);
-useEffect(() => {
-  const handleResize = () => {
-    setIsMobile(window.innerWidth < 768);
-  };
-  
-  window.addEventListener('resize', handleResize);
-  return () => window.removeEventListener('resize', handleResize);
-}, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
@@ -196,80 +308,80 @@ useEffect(() => {
   };
 
   const closeDetailView = () => {
-  setViewMode('list');
-  setSelectedApplication(null);
-  setIsEditModalOpen(false); // Changed from setIsEditing
-  setViewingApplicationCameras([]);
-  setViewingApplicationDevices([]);
-  setSelectedCameraDetails(null);
-  setSelectedDeviceDetails(null);
-};
+    setViewMode('list');
+    setSelectedApplication(null);
+    setIsEditModalOpen(false);
+    setViewingApplicationCameras([]);
+    setViewingApplicationDevices([]);
+    setSelectedCameraDetails(null);
+    setSelectedDeviceDetails(null);
+  };
 
   const handleEditToggle = () => {
-  if (!canUpdateApplication()) {
-    notification.warning({
-      message: 'Permission Denied',
-      description: 'You do not have permission to update applications.',
-      icon: <LockOutlined style={{ color: '#faad14' }} />,
-    });
-    return;
-  }
-  setIsEditModalOpen(true);
-  editForm.setFieldsValue({
-    name: selectedApplication.name,
-    description: selectedApplication.description,
-    publish: selectedApplication.publish,
-    is_active: selectedApplication.is_active,
-  });
-};
-
- const handleEditSave = async (values) => {
-  if (!selectedApplication) return;
-  setLoading(true);
-  try {
-    const changedFields = {};
-    Object.keys(values).forEach((key) => {
-      if (values[key] !== selectedApplication[key]) {
-        changedFields[key] = values[key];
-      }
-    });
-
-    if (Object.keys(changedFields).length === 0) {
-      notification.info({ message: 'No Changes', description: 'No fields were modified.' });
-      setIsEditModalOpen(false); // Changed from setIsEditing
+    if (!canUpdateApplication()) {
+      notification.warning({
+        message: 'Permission Denied',
+        description: 'You do not have permission to update applications.',
+        icon: <LockOutlined style={{ color: '#faad14' }} />,
+      });
       return;
     }
-
-    const response = await updateApplication(selectedApplication.id, changedFields);
-    notification.success({
-      message: 'Success',
-      description: response?.message || 'Application updated successfully!',
+    setIsEditModalOpen(true);
+    editForm.setFieldsValue({
+      name: selectedApplication.name,
+      description: selectedApplication.description,
+      publish: selectedApplication.publish,
+      is_active: selectedApplication.is_active,
     });
+  };
 
-    const updatedApp = { ...selectedApplication, ...changedFields };
-    setSelectedApplication(updatedApp);
-    setApplications((prev) =>
-      prev.map((app) => (app.id === updatedApp.id ? updatedApp : app))
-    );
-    setIsEditModalOpen(false); // Changed from setIsEditing
-  } catch (error) {
-    console.error('Update error:', error);
-    let errorMessage = 'Failed to update application.';
-    if (typeof error === 'object' && error !== null) {
-      const details = [];
-      Object.keys(error).forEach((field) => {
-        if (Array.isArray(error[field])) {
-          error[field].forEach((msg) => details.push(`${field}: ${msg}`));
+  const handleEditSave = async (values) => {
+    if (!selectedApplication) return;
+    setLoading(true);
+    try {
+      const changedFields = {};
+      Object.keys(values).forEach((key) => {
+        if (values[key] !== selectedApplication[key]) {
+          changedFields[key] = values[key];
         }
       });
-      if (details.length) errorMessage = details.join('\n');
-      else if (error.message) errorMessage = error.message;
+
+      if (Object.keys(changedFields).length === 0) {
+        notification.info({ message: 'No Changes', description: 'No fields were modified.' });
+        setIsEditModalOpen(false);
+        return;
+      }
+
+      const response = await updateApplication(selectedApplication.id, changedFields);
+      notification.success({
+        message: 'Success',
+        description: response?.message || 'Application updated successfully!',
+      });
+
+      const updatedApp = { ...selectedApplication, ...changedFields };
+      setSelectedApplication(updatedApp);
+      setApplications((prev) =>
+        prev.map((app) => (app.id === updatedApp.id ? updatedApp : app))
+      );
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error('Update error:', error);
+      let errorMessage = 'Failed to update application.';
+      if (typeof error === 'object' && error !== null) {
+        const details = [];
+        Object.keys(error).forEach((field) => {
+          if (Array.isArray(error[field])) {
+            error[field].forEach((msg) => details.push(`${field}: ${msg}`));
+          }
+        });
+        if (details.length) errorMessage = details.join('\n');
+        else if (error.message) errorMessage = error.message;
+      }
+      notification.error({ message: 'Update Failed', description: errorMessage, duration: 5 });
+    } finally {
+      setLoading(false);
     }
-    notification.error({ message: 'Update Failed', description: errorMessage, duration: 5 });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleDeleteApplication = () => {
     if (!canDeleteApplication()) {
@@ -301,61 +413,67 @@ useEffect(() => {
       },
     });
   };
-const handleEditDevice = (device) => {
- 
-  
-  // ✅ Close detail panel and close modal first
-  setSelectedDeviceDetails(null);
-  setIsDeviceModalOpen(false);
-  
-  // ✅ Then set edit mode after a brief delay
-  setTimeout(() => {
-    setIsEditingDevice(true);
+
+  const handleEditDevice = (device) => {
+    setSelectedDeviceDetails(null);
+    setIsEditingDevice(false);
+
+    // ⭐ Connect WS when entering edit mode
+    if (device.device_token) {
+      connectWebSocket(device.device_token);
+
+      // Fetch latest payload
+      setTimeout(() => {
+        ws?.send(JSON.stringify({ action: "get", path: "" }));
+      }, 300);
+    }
     
-    deviceForm.setFieldsValue({
-      device_uid: device.device_uid,
-      device_name: device.device_name,
-      description: device.description,
-      protocol: device.protocol,
-      firmware_version: device.firmware_version,
-      development_enabled: device.development_enabled,
-    });
+    // ✅ Then set edit mode after a brief delay
+    setTimeout(() => {
+      setIsEditingDevice(true);
+      
+      deviceForm.setFieldsValue({
+        device_uid: device.device_uid,
+        device_name: device.device_name,
+        description: device.description,
+        protocol: device.protocol,
+        firmware_version: device.firmware_version,
+        development_enabled: device.development_enabled,
+      });
 
-    const devicePayload = device.payload || {};
-    setPayloadObj(devicePayload);
-    
-    window.editingDeviceId = device.id;
-    
-    setIsDeviceModalOpen(true);
-  }, 50);
-};
+      const devicePayload = device.payload || {};
+      setPayloadObj(devicePayload);
+      
+      window.editingDeviceId = device.id;
+      
+      setIsDeviceModalOpen(true);
+    }, 50);
+  };
 
-
-
-const handleDeleteDevice = async (deviceId, deviceName) => {
-  setLoading(true);
-  try {
-    await deleteDevice(deviceId);
-    notification.success({ 
-      message: 'Success', 
-      description: `Device "${deviceName}" deleted successfully.` 
-    });
-    if (selectedDeviceDetails?.id === deviceId) setSelectedDeviceDetails(null);
-    if (selectedApplication) await fetchApplicationDetails(selectedApplication.id);
-  } catch (error) {
-    console.error('Delete device error:', error);
-    notification.error({ 
-      message: 'Delete Failed', 
-      description: error.message || 'Failed to delete device.' 
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleDeleteDevice = async (deviceId, deviceName) => {
+    setLoading(true);
+    try {
+      await deleteDevice(deviceId);
+      notification.success({ 
+        message: 'Success', 
+        description: `Device "${deviceName}" deleted successfully.` 
+      });
+      if (selectedDeviceDetails?.id === deviceId) setSelectedDeviceDetails(null);
+      if (selectedApplication) await fetchApplicationDetails(selectedApplication.id);
+    } catch (error) {
+      console.error('Delete device error:', error);
+      notification.error({ 
+        message: 'Delete Failed', 
+        description: error.message || 'Failed to delete device.' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ========= DEVICE MODAL =========
 
-const openDeviceModal = () => {
+  const openDeviceModal = () => {
     // ✅ Reset all states for CREATE mode
     setSelectedDeviceDetails(null);
     setIsEditingDevice(false);
@@ -369,78 +487,76 @@ const openDeviceModal = () => {
     setTimeout(() => {
         setIsDeviceModalOpen(true);
     }, 100);
-};
+  };
 
-const handleDeviceFormSubmit = async (values) => {
-  const appId = selectedApplication?.id || pendingDevicePromptAppId;
-  if (!appId) {
-    notification.error({ message: 'No Application Selected', description: 'Missing application reference.' });
-    return;
-  }
-
-  const editingDeviceId = window.editingDeviceId;
-  const isEditing = isEditingDevice && editingDeviceId;
-
-  const payload = isEditing
-    ? {
-        device_name: values.device_name,
-        description: values.description || '',
-        protocol: values.protocol || 'websocket',
-        firmware_version: values.firmware_version || '',
-        development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
-        ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
-      }
-    : {
-        application: appId,
-        device_uid: values.device_uid,
-        device_name: values.device_name,
-        description: values.description || '',
-        protocol: values.protocol || 'websocket',
-        firmware_version: values.firmware_version || '',
-        development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
-        ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
-      };
-
-  setDeviceSubmitting(true);
-  try {
-    if (isEditing) {
-      await updateDevice(editingDeviceId, payload);
-      notification.success({ message: 'Device updated successfully' });
-    } else {
-      await createDevice(payload);
-      notification.success({ message: 'Device created successfully' });
+  const handleDeviceFormSubmit = async (values) => {
+    const appId = selectedApplication?.id || pendingDevicePromptAppId;
+    if (!appId) {
+      notification.error({ message: 'No Application Selected', description: 'Missing application reference.' });
+      return;
     }
-    
-    // ✅ Clean up
-    setIsDeviceModalOpen(false);
-    deviceForm.resetFields();
-    setPayloadObj({});
-    setIsEditingDevice(false);
-    window.editingDeviceId = null;
-    // ✅ DON'T clear selectedDeviceDetails - just close modal
-    // setSelectedDeviceDetails(null); // REMOVE THIS LINE
-    
-    if (viewMode === 'detail' && selectedApplication) {
-      await fetchApplicationDetails(selectedApplication.id);
-    }
-    await fetchApplications();
-  } catch (error) {
-    console.error('Device operation error:', error);
-    let errorMessage = error?.message || 'Failed to save device.';
-    if (typeof error === 'object' && error !== null) {
-      const details = [];
-      Object.keys(error).forEach((field) => {
-        if (Array.isArray(error[field])) {
-          error[field].forEach((msg) => details.push(`${field}: ${msg}`));
+
+    const editingDeviceId = window.editingDeviceId;
+    const isEditing = isEditingDevice && editingDeviceId;
+
+    const payload = isEditing
+      ? {
+          device_name: values.device_name,
+          description: values.description || '',
+          protocol: values.protocol || 'websocket',
+          firmware_version: values.firmware_version || '',
+          development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
+          ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
         }
-      });
-      if (details.length) errorMessage = details.join('\n');
+      : {
+          application: appId,
+          device_uid: values.device_uid,
+          device_name: values.device_name,
+          description: values.description || '',
+          protocol: values.protocol || 'websocket',
+          firmware_version: values.firmware_version || '',
+          development_enabled: typeof values.development_enabled === 'boolean' ? values.development_enabled : true,
+          ...(payloadObj && Object.keys(payloadObj).length > 0 ? { payload: payloadObj } : {}),
+        };
+
+    setDeviceSubmitting(true);
+    try {
+      if (isEditing) {
+        await updateDevice(editingDeviceId, payload);
+        notification.success({ message: 'Device updated successfully' });
+      } else {
+        await createDevice(payload);
+        notification.success({ message: 'Device created successfully' });
+      }
+      
+      // ✅ Clean up
+      setIsDeviceModalOpen(false);
+      deviceForm.resetFields();
+      setPayloadObj({});
+      setIsEditingDevice(false);
+      window.editingDeviceId = null;
+      
+      if (viewMode === 'detail' && selectedApplication) {
+        await fetchApplicationDetails(selectedApplication.id);
+      }
+      await fetchApplications();
+    } catch (error) {
+      console.error('Device operation error:', error);
+      let errorMessage = error?.message || 'Failed to save device.';
+      if (typeof error === 'object' && error !== null) {
+        const details = [];
+        Object.keys(error).forEach((field) => {
+          if (Array.isArray(error[field])) {
+            error[field].forEach((msg) => details.push(`${field}: ${msg}`));
+          }
+        });
+        if (details.length) errorMessage = details.join('\n');
+      }
+      notification.error({ message: 'Operation Failed', description: errorMessage, duration: 5 });
+    } finally {
+      setDeviceSubmitting(false);
     }
-    notification.error({ message: 'Operation Failed', description: errorMessage, duration: 5 });
-  } finally {
-    setDeviceSubmitting(false);
-  }
-};
+  };
 
   // ========= APPLICATION CREATE MODAL =========
 
@@ -552,78 +668,74 @@ const handleDeviceFormSubmit = async (values) => {
   };
 
   const handleCameraSelection = (cameraId, checked) => {
-  if (checked) {
-    const newList = [...selectedCameras, cameraId];
-    setSelectedCameras(newList);
-    // Don't auto-set primary - user must explicitly select it
-  } else {
-    const remaining = selectedCameras.filter((id) => id !== cameraId);
-    setSelectedCameras(remaining);
-    if (primaryCamera === cameraId) {
-      setPrimaryCamera(null); // Clear primary if this camera was primary
-    }
-  }
-};
-
- const handlePrimaryCameraChange = (cameraId) => {
- 
-  setPrimaryCamera(cameraId);
-};
-
-const handleAssignCameras = async () => {
-  if (selectedCameras.length === 0) {
-    notification.warning({ message: 'No Cameras Selected', description: 'Please select at least one camera.' });
-    return;
-  }
-
-  const appId = selectedApplication?.id || pendingDevicePromptAppId;
-  if (!appId) return;
-
-  setAssignLoading(true);
-  try {
-    // ✅ ONLY if user selected a new primary, update all existing cameras to false
-    if (primaryCamera) {
-      const existingCameras = viewingApplicationCameras;
-      if (existingCameras.length > 0) {
-        const updatePromises = existingCameras.map((cam) =>
-          updateApplicationCamera(cam.id, { is_primary: false })
-        );
-        await Promise.all(updatePromises);
+    if (checked) {
+      const newList = [...selectedCameras, cameraId];
+      setSelectedCameras(newList);
+    } else {
+      const remaining = selectedCameras.filter((id) => id !== cameraId);
+      setSelectedCameras(remaining);
+      if (primaryCamera === cameraId) {
+        setPrimaryCamera(null);
       }
     }
+  };
 
-    // ✅ Assign new cameras
-    const assignPromises = selectedCameras.map((cameraId) => {
-      const camera = cameras.find((c) => c.id === cameraId);
-      return assignCameraToApplication({
-        application: appId,
-        camera: cameraId,
-        description: camera?.camera_name || '',
-        is_primary: cameraId === primaryCamera, // true only if this is the selected primary
-      });
-    });
-    await Promise.all(assignPromises);
-    
-    notification.success({ message: 'Success', description: `${selectedCameras.length} camera(s) assigned!` });
+  const handlePrimaryCameraChange = (cameraId) => {
+    setPrimaryCamera(cameraId);
+  };
 
-    setIsCameraAssignModalOpen(false);
-    setSelectedCameras([]);
-    setPrimaryCamera(null);
-
-    if (viewMode === 'detail' && selectedApplication) {
-      await fetchApplicationDetails(selectedApplication.id);
-    } else if (pendingDevicePromptAppId) {
-      await fetchApplications();
-      openDevicePromptForNewApp(pendingDevicePromptAppId);
-      setPendingDevicePromptAppId(null);
+  const handleAssignCameras = async () => {
+    if (selectedCameras.length === 0) {
+      notification.warning({ message: 'No Cameras Selected', description: 'Please select at least one camera.' });
+      return;
     }
-  } catch (error) {
-    console.error('Camera assignment error:', error);
-    notification.error({ message: 'Assignment Failed', description: error.message || 'Failed to assign cameras.' });
-  } finally {
-    setAssignLoading(false);
-  }
-};
+
+    const appId = selectedApplication?.id || pendingDevicePromptAppId;
+    if (!appId) return;
+
+    setAssignLoading(true);
+    try {
+      if (primaryCamera) {
+        const existingCameras = viewingApplicationCameras;
+        if (existingCameras.length > 0) {
+          const updatePromises = existingCameras.map((cam) =>
+            updateApplicationCamera(cam.id, { is_primary: false })
+          );
+          await Promise.all(updatePromises);
+        }
+      }
+
+      const assignPromises = selectedCameras.map((cameraId) => {
+        const camera = cameras.find((c) => c.id === cameraId);
+        return assignCameraToApplication({
+          application: appId,
+          camera: cameraId,
+          description: camera?.camera_name || '',
+          is_primary: cameraId === primaryCamera,
+        });
+      });
+      await Promise.all(assignPromises);
+      
+      notification.success({ message: 'Success', description: `${selectedCameras.length} camera(s) assigned!` });
+
+      setIsCameraAssignModalOpen(false);
+      setSelectedCameras([]);
+      setPrimaryCamera(null);
+
+      if (viewMode === 'detail' && selectedApplication) {
+        await fetchApplicationDetails(selectedApplication.id);
+      } else if (pendingDevicePromptAppId) {
+        await fetchApplications();
+        openDevicePromptForNewApp(pendingDevicePromptAppId);
+        setPendingDevicePromptAppId(null);
+      }
+    } catch (error) {
+      console.error('Camera assignment error:', error);
+      notification.error({ message: 'Assignment Failed', description: error.message || 'Failed to assign cameras.' });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
 
   const handleRemoveAssignedCamera = (assignmentId, cameraName) => {
     modal.confirm({
@@ -729,108 +841,97 @@ const handleAssignCameras = async () => {
         return <Tag color={isActive ? 'success' : 'error'}>{isActive ? 'Active' : 'Inactive'}</Tag>;
       },
     },
-   {
-  title: 'Actions',
-  key: 'actions',
-  width: 100,
-  render: (_, record) => (
-    <Button 
-      size="small" 
-      danger 
-      icon={<DeleteOutlined />}
-      onClick={(e) => {
-  e.stopPropagation();   // <-- IMPORTANT FIX
-  handleRemoveAssignedCamera(
-    record.id,
-    record.camera_details?.camera_name || "Camera"
-  );
-}}
-
-    />
-  ),
-},
-  ];
-
-const viewDevicesColumns = [
-  {
-    title: 'Device Name',
-    dataIndex: 'device_name',
-    key: 'device_name',
-    render: (text, record) => (
-      <div>
-        <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{text}</div>
-        <div style={{ fontSize: 12, color: token.colorTextSecondary, wordBreak: 'break-all' }}>
-          UID: {record.device_uid}
-        </div>
-      </div>
-    ),
-  },
-  {
-    title: 'Protocol',
-    dataIndex: 'protocol',
-    key: 'protocol',
-    responsive: ['md'],
-  },
-  {
-    title: 'Status',
-    key: 'status',
-    render: (_, record) => (
-      <Space direction="vertical" size={4}>
-        <Tag color={record.is_active ? 'success' : 'error'}>
-          {record.is_active ? 'Active' : 'Inactive'}
-        </Tag>
-        {/* <Tag color={record.is_connected ? 'blue' : 'default'}>
-          {record.is_connected ? 'Online' : 'Offline'}
-        </Tag> */}
-      </Space>
-    ),
-  },
- {
-  title: 'Actions',
-  key: 'actions',
-  width: 100,
-  className: 'actions-column', // ✅ Add this class
-  render: (_, record) => (
-    <Space size={4}>
-      
-      {/* EDIT BUTTON */}
-      <Tooltip >
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 100,
+      render: (_, record) => (
         <Button 
-          size="small"
-          icon={<EditOutlined />}
-          onClick={(e) => {
-            e.stopPropagation(); // Stop event bubbling
-            handleEditDevice(record);
-          }}
-        />
-      </Tooltip>
-
-      {/* DELETE BUTTON */}
-      <Tooltip >
-        <Button
-          size="small"
-          danger
+          size="small" 
+          danger 
           icon={<DeleteOutlined />}
           onClick={(e) => {
-            e.stopPropagation(); // Stop event bubbling
-
-            modal.confirm({
-              title: `Delete ${record.device_name}?`,
-              content: "This action cannot be undone.",
-              okText: "Delete",
-              okType: "danger",
-              cancelText: "Cancel",
-              onOk: () => handleDeleteDevice(record.id, record.device_name)
-            });
+            e.stopPropagation();
+            handleRemoveAssignedCamera(
+              record.id,
+              record.camera_details?.camera_name || "Camera"
+            );
           }}
         />
-      </Tooltip>
-      
-    </Space>
-  ),
-}
+      ),
+    },
+  ];
 
-];
+  const viewDevicesColumns = [
+    {
+      title: 'Device Name',
+      dataIndex: 'device_name',
+      key: 'device_name',
+      render: (text, record) => (
+        <div>
+          <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>{text}</div>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary, wordBreak: 'break-all' }}>
+            UID: {record.device_uid}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Protocol',
+      dataIndex: 'protocol',
+      key: 'protocol',
+      responsive: ['md'],
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      render: (_, record) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={record.is_active ? 'success' : 'error'}>
+            {record.is_active ? 'Active' : 'Inactive'}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 100,
+      className: 'actions-column',
+      render: (_, record) => (
+        <Space size={4}>
+          <Tooltip >
+            <Button 
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditDevice(record);
+              }}
+            />
+          </Tooltip>
+          <Tooltip >
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                modal.confirm({
+                  title: `Delete ${record.device_name}?`,
+                  content: "This action cannot be undone.",
+                  okText: "Delete",
+                  okType: "danger",
+                  cancelText: "Cancel",
+                  onOk: () => handleDeleteDevice(record.id, record.device_name)
+                });
+              }}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    }
+  ];
 
   // ========= RENDER =========
 
@@ -843,329 +944,327 @@ const viewDevicesColumns = [
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
             <Space>
               <Button icon={<ArrowLeftOutlined />} onClick={closeDetailView}>Back</Button>
-              
-              
             </Space>
-           <Space>
-  {canUpdateApplication() && (
-    <Button
-      icon={<EditOutlined />}
-      onClick={handleEditToggle}
-    >
-      Edit
-    </Button>
-  )}
-  {canDeleteApplication() && (
-    <Button danger icon={<DeleteOutlined />} onClick={handleDeleteApplication}>
-      Delete
-    </Button>
-  )}
-</Space>
+            <Space>
+              {canUpdateApplication() && (
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={handleEditToggle}
+                >
+                  Edit
+                </Button>
+              )}
+              {canDeleteApplication() && (
+                <Button danger icon={<DeleteOutlined />} onClick={handleDeleteApplication}>
+                  Delete
+                </Button>
+              )}
+            </Space>
           </div>
 
-          {/* Edit Form or Details */}
-      {/* Details Card - Always show details, no inline editing */}
-<Card style={{ marginBottom: 24 }}>
-  <Descriptions 
-    column={{ xs: 1, sm: 1, md: 2 }} 
-    bordered 
-    size="small"
-    labelStyle={{ whiteSpace: 'normal' }}
-    contentStyle={{ wordBreak: 'break-word' }}
-  >
-    <Descriptions.Item label="Name">{selectedApplication.name}</Descriptions.Item>
-    <Descriptions.Item label="Status">
-      <Tag color={selectedApplication.is_active ? 'success' : 'error'}>
-        {selectedApplication.is_active ? 'Active' : 'Inactive'}
-      </Tag>
-    </Descriptions.Item>
-    <Descriptions.Item label="Description" span={2}>
-      {selectedApplication.description || '-'}
-    </Descriptions.Item>
-    <Descriptions.Item label="Published">
-      <Tag color={selectedApplication.publish ? 'success' : 'default'}>
-        {selectedApplication.publish ? 'Yes' : 'No'}
-      </Tag>
-    </Descriptions.Item>
-    <Descriptions.Item label="Created At">
-      {selectedApplication.created_at
-        ? new Date(selectedApplication.created_at).toLocaleString('en-IN')
-        : '-'}
-    </Descriptions.Item>
-  </Descriptions>
-</Card>
-
-          {/* Cameras Section */}
-        {/* Cameras Section */}
-<Card
-  title={<><CameraOutlined style={{ marginRight: 8 }} />Assigned Cameras ({viewingApplicationCameras.length})</>}
-  extra={<Button type="primary" icon={<LinkOutlined />} onClick={openCameraAssignModal}>Assign Cameras</Button>}
-  style={{ marginBottom: 24 }}
->
-  {viewingApplicationCameras.length === 0 ? (
-    <Alert message="No Cameras Assigned" description="This application has no cameras assigned yet." type="info" showIcon />
-  ) : (
-    <div style={{ display: 'flex', gap: 24, flexDirection: isMobile ? 'column' : 'row' }}>
-      <div style={{ width: !isMobile && selectedCameraDetails ? '60%' : '100%', transition: 'width 0.3s' }}>
-        <Table
-  columns={viewCamerasColumns}
-  dataSource={[...viewingApplicationCameras].sort((a, b) => {
-    if (a.is_primary && !b.is_primary) return -1;
-    if (!a.is_primary && b.is_primary) return 1;
-    return 0;
-  })}
-  rowKey="id"
-  pagination={false}
-  size="small"
-  scroll={{ x: 400 }}
-  rowClassName={(record) => selectedCameraDetails?.id === record.id ? 'ant-table-row-selected' : ''}
-  onRow={(record) => ({
-    onClick: () => setSelectedCameraDetails(record),
-    style: { cursor: 'pointer' },
-  })}
-/>
-      </div>
-      {!isMobile && selectedCameraDetails && (
-        <div style={{ width: '40%', transition: 'width 0.3s' }}>
-          <Card
-            title={selectedCameraDetails.camera_details?.camera_name || 'Camera View'}
-            extra={<Button type="text" icon={<CloseOutlined />} onClick={() => setSelectedCameraDetails(null)} />}
-            size="small"
-          >
-            {selectedCameraDetails.camera_details?.webrtc_url ? (
-              <iframe
-                src={selectedCameraDetails.camera_details.webrtc_url}
-                title="Camera View"
-                style={{ width: '100%', aspectRatio: '16/9', border: 'none', backgroundColor: '#000', borderRadius: 8 }}
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
-            ) : (
-              <Alert message="Live View Not Available" description="WebRTC URL not configured." type="warning" showIcon />
-            )}
-          </Card>
-        </div>
-      )}
-    </div>
-  )}
-</Card>
-
-          {/* Devices Section */}
-          {/* Devices Section */}
-{/* Devices Section */}
-<Card
-  title={<><HddOutlined style={{ marginRight: 8 }} />Assigned Devices ({viewingApplicationDevices.length})</>}
-  extra={<Button type="primary" icon={<PlusOutlined />} onClick={openDeviceModal}>Add Device</Button>}
->
-  {viewingApplicationDevices.length === 0 ? (
-    <Alert message="No Devices Assigned" description="This application has no devices assigned yet." type="info" showIcon />
-  ) : (
-    <div style={{ display: 'flex', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
-      <div style={{ width: !isMobile && selectedDeviceDetails ? '65%' : '100%', transition: 'width 0.3s' }}>
-   <Table
-  columns={viewDevicesColumns}
-  dataSource={viewingApplicationDevices}
-  rowKey="id"
-  pagination={false}
-  size="small"
-  scroll={{ x: 400 }}
-  rowClassName={(record) => selectedDeviceDetails?.id === record.id ? 'ant-table-row-selected' : ''}
-  onRow={(record) => ({
-    onClick: (e) => {
-      // ✅ Don't open details if clicking in actions column
-      const clickedCell = e.target.closest('.ant-table-cell');
-      if (clickedCell?.classList.contains('actions-column')) {
-        return; // Exit early if clicking actions column
-      }
-      
-      // ✅ REMOVED the conditions that were blocking clicks
-      // Just set the device details directly
-      setIsEditingDevice(false);  // Ensure we're not in edit mode
-      setSelectedDeviceDetails(record);
-    },
-    style: { cursor: 'pointer' },
-  })}
-/>
-      </div>
-      {!isMobile && selectedDeviceDetails && (
-        <div style={{ width: '35%', transition: 'width 0.3s' }}>
-          <Card
-            title={selectedDeviceDetails.device_name || 'Device Details'}
-            extra={<Button type="text" icon={<CloseOutlined />} onClick={() => setSelectedDeviceDetails(null)} />}
-            size="small"
-            bodyStyle={{ padding: '12px' }}
-          >
-            <Descriptions column={1} size="small" bordered colon={false}>
-              <Descriptions.Item label="UID" labelStyle={{ width: '40%' }}>
-                <Text ellipsis style={{ fontSize: 12 }}>{selectedDeviceDetails.device_uid}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Protocol">{selectedDeviceDetails.protocol}</Descriptions.Item>
-              <Descriptions.Item label="Firmware">
-                {selectedDeviceDetails.firmware_version || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Dev Mode">
-                <Tag color={selectedDeviceDetails.development_enabled ? 'green' : 'default'} style={{ fontSize: 11 }}>
-                  {selectedDeviceDetails.development_enabled ? 'ON' : 'OFF'}
+          {/* Details Card */}
+          <Card style={{ marginBottom: 24 }}>
+            <Descriptions 
+              column={{ xs: 1, sm: 1, md: 2 }} 
+              bordered 
+              size="small"
+              labelStyle={{ whiteSpace: 'normal' }}
+              contentStyle={{ wordBreak: 'break-word' }}
+            >
+              <Descriptions.Item label="Name">{selectedApplication.name}</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={selectedApplication.is_active ? 'success' : 'error'}>
+                  {selectedApplication.is_active ? 'Active' : 'Inactive'}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Last Update">
-                {selectedDeviceDetails.last_payload_update
-                  ? new Date(selectedDeviceDetails.last_payload_update).toLocaleDateString('en-IN', { 
-                      day: '2-digit', 
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
-                  : 'Never'}
+              <Descriptions.Item label="Description" span={2}>
+                {selectedApplication.description || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Published">
+                <Tag color={selectedApplication.publish ? 'success' : 'default'}>
+                  {selectedApplication.publish ? 'Yes' : 'No'}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Created At">
+                {selectedApplication.created_at
+                  ? new Date(selectedApplication.created_at).toLocaleString('en-IN')
+                  : '-'}
               </Descriptions.Item>
             </Descriptions>
-            {selectedDeviceDetails.payload && Object.keys(selectedDeviceDetails.payload).length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <Text strong style={{ fontSize: 12 }}>Payload:</Text>
-                <pre style={{
-                  background: token.colorBgLayout,
-                  padding: 8,
-                  borderRadius: 6,
-                  fontSize: 11,
-                  maxHeight: 150,
-                  overflow: 'auto',
-                  marginTop: 6,
-                  lineHeight: 1.4
-                }}>
-                  {JSON.stringify(selectedDeviceDetails.payload, null, 2)}
-                </pre>
+          </Card>
+
+          {/* Cameras Section */}
+          <Card
+            title={<><CameraOutlined style={{ marginRight: 8 }} />Assigned Cameras ({viewingApplicationCameras.length})</>}
+            extra={<Button type="primary" icon={<LinkOutlined />} onClick={openCameraAssignModal}>Assign Cameras</Button>}
+            style={{ marginBottom: 24 }}
+          >
+            {viewingApplicationCameras.length === 0 ? (
+              <Alert message="No Cameras Assigned" description="This application has no cameras assigned yet." type="info" showIcon />
+            ) : (
+              <div style={{ display: 'flex', gap: 24, flexDirection: isMobile ? 'column' : 'row' }}>
+                <div style={{ width: !isMobile && selectedCameraDetails ? '60%' : '100%', transition: 'width 0.3s' }}>
+                  <Table
+                    columns={viewCamerasColumns}
+                    dataSource={[...viewingApplicationCameras].sort((a, b) => {
+                      if (a.is_primary && !b.is_primary) return -1;
+                      if (!a.is_primary && b.is_primary) return 1;
+                      return 0;
+                    })}
+                    rowKey="id"
+                    pagination={false}
+                    size="small"
+                    scroll={{ x: 400 }}
+                    rowClassName={(record) => selectedCameraDetails?.id === record.id ? 'ant-table-row-selected' : ''}
+                    onRow={(record) => ({
+                      onClick: () => setSelectedCameraDetails(record),
+                      style: { cursor: 'pointer' },
+                    })}
+                  />
+                </div>
+                {!isMobile && selectedCameraDetails && (
+                  <div style={{ width: '40%', transition: 'width 0.3s' }}>
+                    <Card
+                      title={selectedCameraDetails.camera_details?.camera_name || 'Camera View'}
+                      extra={<Button type="text" icon={<CloseOutlined />} onClick={() => setSelectedCameraDetails(null)} />}
+                      size="small"
+                    >
+                      {selectedCameraDetails.camera_details?.webrtc_url ? (
+                        <iframe
+                          src={selectedCameraDetails.camera_details.webrtc_url}
+                          title="Camera View"
+                          style={{ width: '100%', aspectRatio: '16/9', border: 'none', backgroundColor: '#000', borderRadius: 8 }}
+                          allow="autoplay; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <Alert message="Live View Not Available" description="WebRTC URL not configured." type="warning" showIcon />
+                      )}
+                    </Card>
+                  </div>
+                )}
               </div>
             )}
           </Card>
-        </div>
-      )}
-    </div>
-  )}
-</Card>
-        </Spin>
-        {/* Camera Details Modal - Mobile Only */}
-<Modal
-  title={selectedCameraDetails?.camera_details?.camera_name || 'Camera View'}
- open={isMobile && selectedCameraDetails !== null && !isCameraAssignModalOpen}
-  onCancel={() => setSelectedCameraDetails(null)}
-  footer={[
-    <Button key="close" onClick={() => setSelectedCameraDetails(null)}>Close</Button>
-  ]}
-  width="90%"
-  style={{ top: 20 }}
->
-  {selectedCameraDetails?.camera_details?.webrtc_url ? (
-    <iframe
-      src={selectedCameraDetails.camera_details.webrtc_url}
-      title="Camera View"
-      style={{ width: '100%', aspectRatio: '16/9', border: 'none', backgroundColor: '#000', borderRadius: 8 }}
-      allow="autoplay; encrypted-media; picture-in-picture"
-      allowFullScreen
-    />
-  ) : (
-    <Alert message="Live View Not Available" description="WebRTC URL not configured." type="warning" showIcon />
-  )}
-</Modal>
 
-{/* Device Details Modal - Mobile Only */}
-<Modal
-  title={selectedDeviceDetails?.device_name || 'Device Details'}
-open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEditingDevice}
-  onCancel={() => setSelectedDeviceDetails(null)}
-  footer={[
-    <Button key="close" onClick={() => setSelectedDeviceDetails(null)}>Close</Button>
-  ]}
-  width="90%"
-  style={{ top: 20 }}
->
-  <Descriptions column={1} size="small" bordered colon={false}>
-    <Descriptions.Item label="UID" labelStyle={{ width: '40%' }}>
-      <Text style={{ fontSize: 12, wordBreak: 'break-all' }}>{selectedDeviceDetails?.device_uid}</Text>
-    </Descriptions.Item>
-    <Descriptions.Item label="Protocol">{selectedDeviceDetails?.protocol}</Descriptions.Item>
-    <Descriptions.Item label="Firmware">
-      {selectedDeviceDetails?.firmware_version || '-'}
-    </Descriptions.Item>
-    <Descriptions.Item label="Dev Mode">
-      <Tag color={selectedDeviceDetails?.development_enabled ? 'green' : 'default'}>
-        {selectedDeviceDetails?.development_enabled ? 'ON' : 'OFF'}
-      </Tag>
-    </Descriptions.Item>
-    <Descriptions.Item label="Status">
-      <Space direction="vertical" size={4}>
-        <Tag color={selectedDeviceDetails?.is_active ? 'success' : 'error'}>
-          {selectedDeviceDetails?.is_active ? 'Active' : 'Inactive'}
-        </Tag>
-        {/* <Tag color={selectedDeviceDetails?.is_connected ? 'blue' : 'default'}>
-          {selectedDeviceDetails?.is_connected ? 'Online' : 'Offline'}
-        </Tag> */}
-      </Space>
-    </Descriptions.Item>
-    <Descriptions.Item label="Last Update">
-      {selectedDeviceDetails?.last_payload_update
-        ? new Date(selectedDeviceDetails.last_payload_update).toLocaleDateString('en-IN', { 
-            day: '2-digit', 
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : 'Never'}
-    </Descriptions.Item>
-  </Descriptions>
-  {selectedDeviceDetails?.payload && Object.keys(selectedDeviceDetails.payload).length > 0 && (
-    <div style={{ marginTop: 16 }}>
-      <Text strong>Payload:</Text>
-      <pre style={{
-        background: token.colorBgLayout,
-        padding: 12,
-        borderRadius: 6,
-        fontSize: 12,
-        maxHeight: 200,
-        overflow: 'auto',
-        marginTop: 8,
-        wordBreak: 'break-all',
-        whiteSpace: 'pre-wrap'
-      }}>
-        {JSON.stringify(selectedDeviceDetails.payload, null, 2)}
-      </pre>
-    </div>
-  )}
-</Modal>
-{/* Edit Application Modal */}
-<Modal
-  title="Edit Application"
-  open={isEditModalOpen}
-  onCancel={() => setIsEditModalOpen(false)}
-  footer={null}
-  width={600}
->
-  <Form form={editForm} layout="vertical" onFinish={handleEditSave} style={{ marginTop: 16 }}>
-    <Form.Item
-      name="name"
-      label="Application Name"
-      rules={[{ required: true, message: 'Please enter application name' }, { max: 100 }]}
-    >
-      <Input placeholder="Application Name" />
-    </Form.Item>
-    <Form.Item name="description" label="Description" rules={[{ max: 500 }]}>
-      <TextArea rows={3} placeholder="Description" />
-    </Form.Item>
-    <Form.Item name="publish" label="Publish" valuePropName="checked">
-      <Switch />
-    </Form.Item>
-    <Form.Item name="is_active" label="Active" valuePropName="checked">
-      <Switch />
-    </Form.Item>
-    <div style={{ textAlign: 'right' }}>
-      <Space>
-        <Button onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
-          Save Changes
-        </Button>
-      </Space>
-    </div>
-  </Form>
-</Modal>
+          {/* Devices Section */}
+          <Card
+            title={<><HddOutlined style={{ marginRight: 8 }} />Assigned Devices ({viewingApplicationDevices.length})</>}
+            extra={<Button type="primary" icon={<PlusOutlined />} onClick={openDeviceModal}>Add Device</Button>}
+          >
+            {viewingApplicationDevices.length === 0 ? (
+              <Alert message="No Devices Assigned" description="This application has no devices assigned yet." type="info" showIcon />
+            ) : (
+              <div style={{ display: 'flex', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
+                <div style={{ width: !isMobile && selectedDeviceDetails ? '65%' : '100%', transition: 'width 0.3s' }}>
+                  <Table
+                    columns={viewDevicesColumns}
+                    dataSource={viewingApplicationDevices}
+                    rowKey="id"
+                    pagination={false}
+                    size="small"
+                    scroll={{ x: 400 }}
+                    rowClassName={(record) => selectedDeviceDetails?.id === record.id ? 'ant-table-row-selected' : ''}
+                    onRow={(record) => ({
+                      onClick: (e) => {
+                        const clickedCell = e.target.closest('.ant-table-cell');
+                        if (clickedCell?.classList.contains('actions-column')) {
+                          return;
+                        }
+                        
+                        setIsEditingDevice(false);
+                        setSelectedDeviceDetails(record);
+                        if (record.device_token) {
+                          connectWebSocket(record.device_token);
+                          setTimeout(() => {
+                            ws?.send(JSON.stringify({ action: "get", path: "" }));
+                          }, 300);
+                        }
+                      },
+                      style: { cursor: 'pointer' },
+                    })}
+                  />
+                </div>
+                {!isMobile && selectedDeviceDetails && (
+                  <div style={{ width: '35%', transition: 'width 0.3s' }}>
+                    <Card
+                      title={selectedDeviceDetails.device_name || 'Device Details'}
+                      extra={<Button type="text" icon={<CloseOutlined />} onClick={() => setSelectedDeviceDetails(null)} />}
+                      size="small"
+                      bodyStyle={{ padding: '12px' }}
+                    >
+                      <Descriptions column={1} size="small" bordered colon={false}>
+                        <Descriptions.Item label="UID" labelStyle={{ width: '40%' }}>
+                          <Text ellipsis style={{ fontSize: 12 }}>{selectedDeviceDetails.device_uid}</Text>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Protocol">{selectedDeviceDetails.protocol}</Descriptions.Item>
+                        <Descriptions.Item label="Firmware">
+                          {selectedDeviceDetails.firmware_version || '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Dev Mode">
+                          <Tag color={selectedDeviceDetails.development_enabled ? 'green' : 'default'}>
+                            {selectedDeviceDetails.development_enabled ? 'ON' : 'OFF'}
+                          </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Last Update">
+                          {selectedDeviceDetails.last_payload_update
+                            ? new Date(selectedDeviceDetails.last_payload_update).toLocaleDateString('en-IN', { 
+                                day: '2-digit', 
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : 'Never'}
+                        </Descriptions.Item>
+                      </Descriptions>
+                      {selectedDeviceDetails.payload && Object.keys(selectedDeviceDetails.payload).length > 0 && (
+                        <div style={{ marginTop: 12 }}>
+                          <Text strong style={{ fontSize: 12 }}>Payload:</Text>
+                          <pre style={{
+                            background: token.colorBgLayout,
+                            padding: 8,
+                            borderRadius: 6,
+                            fontSize: 11,
+                            maxHeight: 150,
+                            overflow: 'auto',
+                            marginTop: 6,
+                            lineHeight: 1.4
+                          }}>
+                            {JSON.stringify(selectedDeviceDetails.payload, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </Spin>
+
+        {/* Modals (Camera, Device Details, Edit App) ... */}
+        {/* Camera Details Modal - Mobile Only */}
+        <Modal
+          title={selectedCameraDetails?.camera_details?.camera_name || 'Camera View'}
+          open={isMobile && selectedCameraDetails !== null && !isCameraAssignModalOpen}
+          onCancel={() => setSelectedCameraDetails(null)}
+          footer={[
+            <Button key="close" onClick={() => setSelectedCameraDetails(null)}>Close</Button>
+          ]}
+          width="90%"
+          style={{ top: 20 }}
+        >
+          {selectedCameraDetails?.camera_details?.webrtc_url ? (
+            <iframe
+              src={selectedCameraDetails.camera_details.webrtc_url}
+              title="Camera View"
+              style={{ width: '100%', aspectRatio: '16/9', border: 'none', backgroundColor: '#000', borderRadius: 8 }}
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <Alert message="Live View Not Available" description="WebRTC URL not configured." type="warning" showIcon />
+          )}
+        </Modal>
+
+        {/* Device Details Modal - Mobile Only */}
+        <Modal
+          title={selectedDeviceDetails?.device_name || 'Device Details'}
+          open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEditingDevice}
+          onCancel={() => setSelectedDeviceDetails(null)}
+          footer={[
+            <Button key="close" onClick={() => setSelectedDeviceDetails(null)}>Close</Button>
+          ]}
+          width="90%"
+          style={{ top: 20 }}
+        >
+          <Descriptions column={1} size="small" bordered colon={false}>
+            <Descriptions.Item label="UID" labelStyle={{ width: '40%' }}>
+              <Text style={{ fontSize: 12, wordBreak: 'break-all' }}>{selectedDeviceDetails?.device_uid}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="Protocol">{selectedDeviceDetails?.protocol}</Descriptions.Item>
+            <Descriptions.Item label="Firmware">
+              {selectedDeviceDetails?.firmware_version || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Dev Mode">
+              <Tag color={selectedDeviceDetails?.development_enabled ? 'green' : 'default'}>
+                {selectedDeviceDetails?.development_enabled ? 'ON' : 'OFF'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <Space direction="vertical" size={4}>
+                <Tag color={selectedDeviceDetails?.is_active ? 'success' : 'error'}>
+                  {selectedDeviceDetails?.is_active ? 'Active' : 'Inactive'}
+                </Tag>
+              </Space>
+            </Descriptions.Item>
+            <Descriptions.Item label="Last Update">
+              {selectedDeviceDetails?.last_payload_update
+                ? new Date(selectedDeviceDetails.last_payload_update).toLocaleDateString('en-IN', { 
+                    day: '2-digit', 
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                : 'Never'}
+            </Descriptions.Item>
+          </Descriptions>
+          {selectedDeviceDetails?.payload && Object.keys(selectedDeviceDetails.payload).length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Text strong>Payload:</Text>
+              <pre style={{
+                background: token.colorBgLayout,
+                padding: 12,
+                borderRadius: 6,
+                fontSize: 12,
+                maxHeight: 200,
+                overflow: 'auto',
+                marginTop: 8,
+                wordBreak: 'break-all',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {JSON.stringify(selectedDeviceDetails.payload, null, 2)}
+              </pre>
+            </div>
+          )}
+        </Modal>
+
+        {/* Edit Application Modal */}
+        <Modal
+          title="Edit Application"
+          open={isEditModalOpen}
+          onCancel={() => setIsEditModalOpen(false)}
+          footer={null}
+          width={600}
+        >
+          <Form form={editForm} layout="vertical" onFinish={handleEditSave} style={{ marginTop: 16 }}>
+            <Form.Item
+              name="name"
+              label="Application Name"
+              rules={[{ required: true, message: 'Please enter application name' }, { max: 100 }]}
+            >
+              <Input placeholder="Application Name" />
+            </Form.Item>
+            <Form.Item name="description" label="Description" rules={[{ max: 500 }]}>
+              <TextArea rows={3} placeholder="Description" />
+            </Form.Item>
+            <Form.Item name="publish" label="Publish" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="is_active" label="Active" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <div style={{ textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
+                  Save Changes
+                </Button>
+              </Space>
+            </div>
+          </Form>
+        </Modal>
+
         {/* Camera Assignment Modal */}
         <Modal
           title={<Space><CameraOutlined /><span>Assign Cameras</span></Space>}
@@ -1219,28 +1318,28 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
                               <Tag color={camera.is_active ? 'success' : 'error'}>{camera.is_active ? 'Active' : 'Inactive'}</Tag>
                             </div>
                           </div>
-                    {selectedCameras.includes(camera.id) && (
-  <Radio.Group 
-    value={primaryCamera} 
-    onChange={(e) => handlePrimaryCameraChange(e.target.value)}
-  >
-    <Radio value={camera.id} style={{ marginLeft: 16 }}>
-      Primary
-    </Radio>
-  </Radio.Group>
-)}
+                          {selectedCameras.includes(camera.id) && (
+                            <Radio.Group 
+                              value={primaryCamera} 
+                              onChange={(e) => handlePrimaryCameraChange(e.target.value)}
+                            >
+                              <Radio value={camera.id} style={{ marginLeft: 16 }}>
+                                Primary
+                              </Radio>
+                            </Radio.Group>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                   {selectedCameras.length > 0 && (
-  <Alert
-    message={`${selectedCameras.length} camera(s) selected${primaryCamera ? `. Primary: ${cameras.find(c => c.id === primaryCamera)?.camera_name || 'Set'}` : '. (Optional: Select a primary camera)'}`}
-    type="info"
-    showIcon
-    style={{ marginTop: 16 }}
-  />
-)}
+                    <Alert
+                      message={`${selectedCameras.length} camera(s) selected${primaryCamera ? `. Primary: ${cameras.find(c => c.id === primaryCamera)?.camera_name || 'Set'}` : '. (Optional: Select a primary camera)'}`}
+                      type="info"
+                      showIcon
+                      style={{ marginTop: 16 }}
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -1248,22 +1347,19 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
         </Modal>
 
         {/* Device Modal */}
-       
-<Modal
-  title={isEditingDevice ? "Edit Device" : "Create Device"}
-  open={isDeviceModalOpen}
-  onCancel={() => { 
-    setIsDeviceModalOpen(false); 
-    setIsEditingDevice(false);
-    window.editingDeviceId = null;
-    deviceForm.resetFields(); 
-    setPayloadObj({});
-    // ✅ DON'T clear selectedDeviceDetails here - let user click devices again
-    // setSelectedDeviceDetails(null); // REMOVE THIS LINE
-  }}
-  footer={null}
-  width={600}
->
+        <Modal
+          title={isEditingDevice ? "Edit Device" : "Create Device"}
+          open={isDeviceModalOpen}
+          onCancel={() => { 
+            setIsDeviceModalOpen(false); 
+            setIsEditingDevice(false);
+            window.editingDeviceId = null;
+            deviceForm.resetFields(); 
+            setPayloadObj({});
+          }}
+          footer={null}
+          width={600}
+        >
           <Form form={deviceForm} layout="vertical" onFinish={handleDeviceFormSubmit} style={{ marginTop: 16 }}>
             <Form.Item name="device_uid" label="Device UID" rules={[{ required: true, message: 'Please enter device UID' }]}>
               <Input placeholder="ESP32_001" />
@@ -1274,16 +1370,16 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
             <Form.Item name="description" label="Description">
               <TextArea rows={3} placeholder="Controls fan & lights" />
             </Form.Item>
-           <Form.Item
-  name="protocol"
-  label="Protocol"
-  rules={[{ required: true, message: 'Please select protocol' }]}
->
-  <Select placeholder="Select protocol">
-    <Select.Option value="websocket">WebSocket</Select.Option>
-    <Select.Option value="http">HTTP</Select.Option>
-  </Select>
-</Form.Item>
+            <Form.Item
+              name="protocol"
+              label="Protocol"
+              rules={[{ required: true, message: 'Please select protocol' }]}
+            >
+              <Select placeholder="Select protocol">
+                <Select.Option value="websocket">WebSocket</Select.Option>
+                <Select.Option value="http">HTTP</Select.Option>
+              </Select>
+            </Form.Item>
             <Form.Item name="firmware_version" label="Firmware Version">
               <Input placeholder="v1.0.2" />
             </Form.Item>
@@ -1292,7 +1388,36 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
             </Form.Item>
             <Form.Item label="Payload (JSON)">
               <div>
-                <Button onClick={() => setShowPayloadBuilder(true)}>Open Payload Builder</Button>
+                <Button
+                  onClick={() => {
+                    setShowPayloadBuilder(false);
+                    setTimeout(() => {
+                      // Get the latest payload from device details OR payloadObj
+                      const currentPayload = selectedDeviceDetails?.payload || payloadObj || {};
+                      
+                      // Force fresh clone into builder
+                      setPayloadObj(JSON.parse(JSON.stringify(currentPayload)));
+                      
+                      // Connect WebSocket if editing existing device
+                      if (selectedDeviceDetails?.device_token) {
+                        // ✅ Capture the socket instance directly from the function return
+                        const socket = connectWebSocket(selectedDeviceDetails.device_token);
+                        
+                        setTimeout(() => {
+                          // ✅ Use the captured 'socket' variable, NOT the 'ws' state which might be stale
+                          if (socket && socket.readyState === 1) { 
+                            socket.send(JSON.stringify({ action: "get", path: "" }));
+                          }
+                        }, 500);
+                      }
+                      
+                      setShowPayloadBuilder(true);
+                    }, 100);
+                  }}
+                >
+                  Open Payload Builder
+                </Button>
+
                 {Object.keys(payloadObj).length > 0 && (
                   <TextArea rows={4} value={JSON.stringify(payloadObj, null, 2)} readOnly style={{ marginTop: 10, background: '#f5f5f5' }} />
                 )}
@@ -1301,9 +1426,9 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
             <div style={{ textAlign: 'right' }}>
               <Space>
                 <Button onClick={() => { setIsDeviceModalOpen(false); deviceForm.resetFields(); setPayloadObj({}); }}>Cancel</Button>
-             <Button type="primary" htmlType="submit" loading={deviceSubmitting}>
-  {isEditingDevice ? 'Update Device' : 'Create Device'} 
-</Button>
+                <Button type="primary" htmlType="submit" loading={deviceSubmitting}>
+                  {isEditingDevice ? 'Update Device' : 'Create Device'} 
+                </Button>
               </Space>
             </div>
           </Form>
@@ -1317,7 +1442,13 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
           onOk={() => setShowPayloadBuilder(false)}
           width={700}
         >
-          <JsonBuilderComponent jsonData={payloadObj} onChange={(updatedJson) => setPayloadObj(updatedJson)} />
+          <JsonBuilderComponent
+            jsonData={payloadObj}
+            onChange={(updatedJson) => {
+              setPayloadObj(updatedJson);
+              sendPut("", updatedJson);
+            }}
+          />
         </Modal>
       </div>
     );
@@ -1418,7 +1549,26 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
           </Form.Item>
           <Form.Item label="Payload (JSON)">
             <div>
-              <Button onClick={() => setShowPayloadBuilder(true)}>Open Payload Builder</Button>
+              <Button
+                onClick={() => {
+                  setShowPayloadBuilder(false);
+                  setTimeout(() => {
+                    const currentPayload = selectedDeviceDetails?.payload || payloadObj || {};
+                    setPayloadObj(JSON.parse(JSON.stringify(currentPayload)));
+                    if (selectedDeviceDetails?.device_token) {
+                      const socket = connectWebSocket(selectedDeviceDetails.device_token);
+                      setTimeout(() => {
+                        if (socket && socket.readyState === 1) {
+                          socket.send(JSON.stringify({ action: "get", path: "" }));
+                        }
+                      }, 500);
+                    }
+                    setShowPayloadBuilder(true);
+                  }, 100);
+                }}
+              >
+                Open Payload Builder
+              </Button>
               {Object.keys(payloadObj).length > 0 && (
                 <TextArea rows={4} value={JSON.stringify(payloadObj, null, 2)} readOnly style={{ marginTop: 10, background: '#f5f5f5' }} />
               )}
@@ -1512,7 +1662,13 @@ open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEdi
         onOk={() => setShowPayloadBuilder(false)}
         width={700}
       >
-        <JsonBuilderComponent jsonData={payloadObj} onChange={(updatedJson) => setPayloadObj(updatedJson)} />
+        <JsonBuilderComponent
+          jsonData={payloadObj}
+          onChange={(updatedJson) => {
+            setPayloadObj(updatedJson);
+            sendPut("", updatedJson);
+          }}
+        />
       </Modal>
     </div>
   );

@@ -18,70 +18,53 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
   const [expanded, setExpanded] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
-  // 1. CHECK TYPE OF DATA
-  // Is it a completed IoT Field? (Has 'type' and 'value')
+  // Identify Types
   const isIoTField = typeof data === 'object' && data !== null && 'type' in data && 'value' in data;
-  
-  // Is it a Folder? (Object but NOT an IoT Field)
   const isFolder = typeof data === 'object' && data !== null && !Array.isArray(data) && !isIoTField;
-  
-  // Is it a List?
   const isList = Array.isArray(data);
-
-  // Is it a fresh/primitive node? (String/Number/Null) -> User hasn't decided yet
   const isNeutral = !isIoTField && !isFolder && !isList;
+
+  // Check if the IoT Field holds complex data (Dict/List)
+  const isComplexIoTValue = isIoTField && (data.type === 'dict' || data.type === 'list');
 
   const indentSize = 24; 
   const currentIndent = depth * indentSize;
 
-  // --- HANDLERS ---
-
-  // User Selects a Type -> Convert to IoT Field Structure
+  // Handlers
   const handleTypeSelect = (type) => {
       let defaultValue = "";
       if (type === 'int' || type === 'float') defaultValue = 0;
       if (type === 'boolean') defaultValue = false;
+      if (type === 'dict') defaultValue = {}; // Initialize as empty object
+      if (type === 'list') defaultValue = []; // Initialize as empty array
       
-      // Update data to { type: "...", value: ... }
       onUpdate({ type: type, value: defaultValue });
   };
 
-  // User Changes Value inside IoT Field
   const handleIoTValueChange = (val) => {
       const newType = data.type;
       let finalVal = val;
-
       if (newType === 'int' || newType === 'float') {
           if (!isNaN(val) && val !== '') finalVal = Number(val);
-      } else if (newType === 'boolean') {
-          // Antd Select handles boolean value directly usually, but input returns string
-          // We will handle boolean via Select in UI
       }
-
       onUpdate({ ...data, value: finalVal });
   };
 
-  // User Clicks (+) -> Convert to Folder OR Add Child
   const handlePlusClick = () => {
       setExpanded(true);
       if (isFolder) {
-          // Add child to existing folder
           const newKey = `prop_${Object.keys(data).length + 1}`;
           onUpdate({ ...data, [newKey]: "" });
       } else if (isList) {
-          // Add item to list
           onUpdate([...data, ""]);
       } else {
-          // 🔥 NEUTRAL STATE: Convert Primitive to Folder
-          // User chose (+) instead of Type. So it becomes a Folder.
           const newKey = "prop_1";
           onUpdate({ [newKey]: "" }); 
       }
   };
 
   return (
-    <div style={{ position: 'relative' }}>
-      {/* ROW */}
+    <div style={{ position: 'relative', minWidth: 'fit-content' }}>
       <div 
         style={{ 
             display: 'flex', 
@@ -106,18 +89,18 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
             }} />
         )}
 
-        {/* Expander Icon (Only for Folders/Lists) */}
+        {/* Expander */}
         <div 
-            style={{ width: 20, cursor: 'pointer', display: 'flex', justifyContent: 'center', marginRight: 4 }}
+            style={{ width: 20, cursor: 'pointer', display: 'flex', justifyContent: 'center', marginRight: 4, flexShrink: 0 }}
             onClick={() => setExpanded(!expanded)}
         >
-            {(isFolder || isList) && (
+            {(isFolder || isList || isComplexIoTValue) && (
                 expanded ? <CaretDownOutlined style={{fontSize: 10, color: '#999'}} /> : <CaretRightOutlined style={{fontSize: 10, color: '#999'}} />
             )}
         </div>
 
-        {/* KEY NAME INPUT */}
-        <div style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
+        {/* Key Name */}
+        <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
             {name !== null ? (
                 <>
                     <Input 
@@ -140,35 +123,38 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
             )}
         </div>
 
-        {/* MIDDLE SECTION: TYPE & VALUE */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Value / Type Section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             
-            {/* Case 1: FOLDER or LIST */}
             {(isFolder || isList) && (
                 <Tag color={isList ? "orange" : "blue"} style={{fontSize: 10}}>
                     {isList ? 'List' : 'Folder'}
                 </Tag>
             )}
 
-            {/* Case 2: IOT FIELD (Type Selected) */}
             {isIoTField && (
                 <>
                     <Tag color="green" style={{fontSize: 10}}>Field</Tag>
-                    {/* Read-Only Type Display or Editable if needed */}
                     <Select 
                         size="small" 
                         value={data.type} 
                         style={{width: 90}} 
-                        onChange={(val) => handleTypeSelect(val)} // Allow changing type
+                        onChange={(val) => handleTypeSelect(val)}
                     >
                         <Option value="string">string</Option>
                         <Option value="int">int</Option>
                         <Option value="float">float</Option>
                         <Option value="boolean">boolean</Option>
+                        <Option value="dict">dict</Option>
+                        <Option value="list">list</Option>
                     </Select>
 
-                    {/* Value Input */}
-                    {data.type === 'boolean' ? (
+                    {/* 🔥 FIX: If type is dict/list, SHOW TEXT instead of Input to avoid [object Object] */}
+                    {isComplexIoTValue ? (
+                        <Text type="secondary" style={{fontSize: 12}}>
+                            {data.type === 'list' ? '[ ... ]' : '{ ... }'}
+                        </Text>
+                    ) : data.type === 'boolean' ? (
                         <Select 
                             size="small" 
                             value={data.value} 
@@ -190,7 +176,6 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                 </>
             )}
 
-            {/* Case 3: NEUTRAL (User needs to decide) */}
             {isNeutral && (
                 <>
                     <Select 
@@ -198,24 +183,23 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                         placeholder="Select Type" 
                         style={{width: 120}} 
                         onChange={handleTypeSelect}
-                        dropdownMatchSelectWidth={false}
                     >
                         <Option value="string">string</Option>
                         <Option value="int">int</Option>
                         <Option value="float">float</Option>
                         <Option value="boolean">boolean</Option>
+                        <Option value="dict">dict</Option>
                     </Select>
                     <Input disabled size="small" placeholder="Value" style={{width: 120, opacity: 0.5}} />
                 </>
             )}
         </div>
 
-        {/* ACTIONS */}
-        <div style={{ width: 60, marginLeft: 10, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s' }}>
+        {/* Actions */}
+        <div style={{ width: 60, marginLeft: 10, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s', flexShrink: 0 }}>
             <Space size={2}>
-                {/* (+) Button: Hidden if it is an IoT Field */}
                 {!isIoTField && (
-                    <Tooltip >
+                    <Tooltip title={isNeutral ? "Convert to Folder" : "Add Child"}>
                         <Button 
                             size="small" 
                             type="text" 
@@ -224,22 +208,15 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                         />
                     </Tooltip>
                 )}
-                
-                <Tooltip >
-                    <Button 
-                        size="small" 
-                        type="text" 
-                        danger 
-                        icon={<DeleteOutlined />} 
-                        onClick={onDelete} 
-                    />
+                <Tooltip title="Delete">
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} />
                 </Tooltip>
             </Space>
         </div>
       </div>
 
-      {/* RECURSIVE CHILDREN RENDER */}
-      {expanded && (isFolder || isList) && (
+      {/* Recursive Children */}
+      {expanded && (
         <div style={{ position: 'relative' }}>
             <div style={{
                 position: 'absolute',
@@ -250,31 +227,54 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                 zIndex: 0
             }} />
             
-            {Object.entries(data).map(([key, val], index) => (
+            {/* If it's a Complex IoT Field, we need to iterate over its VALUE keys too */}
+            {(isFolder || isList || isComplexIoTValue) && Object.entries(isComplexIoTValue ? data.value : data).map(([key, val], index) => (
                 <JsonNode 
                     key={index}
-                    name={isList ? null : key}
+                    name={isList ? null : key} // Don't show key name for Array items
                     data={val}
                     depth={depth + 1}
                     onUpdate={(newVal) => {
-                        const newData = isList ? [...data] : { ...data };
-                        newData[key] = newVal;
+                        let newData;
+                        if (isComplexIoTValue) {
+                            // Update inside value object
+                            const newValueObj = Array.isArray(data.value) ? [...data.value] : { ...data.value };
+                            newValueObj[key] = newVal;
+                            newData = { ...data, value: newValueObj };
+                        } else {
+                            newData = isList ? [...data] : { ...data };
+                            newData[key] = newVal;
+                        }
                         onUpdate(newData);
                     }}
                     onRename={(newKey) => {
                         if(isList) return;
-                        const newData = { ...data };
-                        const temp = newData[key];
-                        delete newData[key];
-                        newData[newKey] = temp;
+                        let newData;
+                        if (isComplexIoTValue) {
+                             const newValueObj = { ...data.value };
+                             const temp = newValueObj[key];
+                             delete newValueObj[key];
+                             newValueObj[newKey] = temp;
+                             newData = { ...data, value: newValueObj };
+                        } else {
+                            newData = { ...data };
+                            const temp = newData[key];
+                            delete newData[key];
+                            newData[newKey] = temp;
+                        }
                         onUpdate(newData);
                     }}
                     onDelete={() => {
-                        const newData = isList ? [...data] : { ...data };
-                        if (isList) {
-                            newData.splice(key, 1);
+                        let newData;
+                        if (isComplexIoTValue) {
+                            const newValueObj = Array.isArray(data.value) ? [...data.value] : { ...data.value };
+                            if (Array.isArray(newValueObj)) newValueObj.splice(key, 1);
+                            else delete newValueObj[key];
+                            newData = { ...data, value: newValueObj };
                         } else {
-                            delete newData[key];
+                            newData = isList ? [...data] : { ...data };
+                            if (isList) newData.splice(key, 1);
+                            else delete newData[key];
                         }
                         onUpdate(newData);
                     }}
@@ -295,7 +295,6 @@ const JsonBuilderComponent = ({ jsonData, onChange }) => {
   }, [jsonData]);
 
   const handleRootAdd = () => {
-      // Add a neutral field at root
       const newKey = `root_${Object.keys(localJson).length + 1}`;
       setLocalJson({ ...localJson, [newKey]: "" });
   };
@@ -305,19 +304,19 @@ const JsonBuilderComponent = ({ jsonData, onChange }) => {
   };
 
   return (
-    <div style={{ height: '60vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       
-      {/* Header */}
       <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text strong>Payload Structure</Text>
+          {/* <Text strong>Payload Structure</Text> */}
           <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={handleRootAdd}>
               Add Root Field
           </Button>
       </div>
 
-      {/* Tree Area */}
+      {/* Scrollable Container */}
       <div style={{ 
-          flex: 1, 
+          flex: 1,
+          height: '400px', 
           overflow: 'auto', 
           background: '#fff', 
           border: '1px solid #d9d9d9', 
@@ -326,48 +325,42 @@ const JsonBuilderComponent = ({ jsonData, onChange }) => {
           fontFamily: 'monospace'
       }}>
         {Object.keys(localJson).length === 0 ? (
-            <div style={{textAlign:'center', marginTop: 40, color: '#ccc'}}>
+            <div style={{textAlign:'center', marginTop: 150, color: '#ccc'}}>
                 <FileOutlined style={{fontSize: 24, marginBottom: 8}} />
                 <div>Empty Payload. Add fields to start.</div>
             </div>
         ) : (
-            Object.entries(localJson).map(([key, val], index) => (
-                <JsonNode 
-                    key={index}
-                    name={key}
-                    data={val}
-                    depth={0}
-                    onUpdate={(newVal) => {
-                        const newData = { ...localJson };
-                        newData[key] = newVal;
-                        setLocalJson(newData);
-                    }}
-                    onRename={(newKey) => {
-                        const newData = { ...localJson };
-                        const temp = newData[key];
-                        delete newData[key];
-                        newData[newKey] = temp;
-                        setLocalJson(newData);
-                    }}
-                    onDelete={() => {
-                        const newData = { ...localJson };
-                        delete newData[key];
-                        setLocalJson(newData);
-                    }}
-                />
-            ))
+            <div style={{ minWidth: '100%', display: 'inline-block' }}>
+                {Object.entries(localJson).map(([key, val], index) => (
+                    <JsonNode 
+                        key={index}
+                        name={key}
+                        data={val}
+                        depth={0}
+                        onUpdate={(newVal) => {
+                            const newData = { ...localJson };
+                            newData[key] = newVal;
+                            setLocalJson(newData);
+                            onChange(newData); 
+                        }}
+                        onRename={(newKey) => {
+                            const newData = { ...localJson };
+                            const temp = newData[key];
+                            delete newData[key];
+                            newData[newKey] = temp;
+                            setLocalJson(newData);
+                            onChange(newData);
+                        }}
+                        onDelete={() => {
+                            const newData = { ...localJson };
+                            delete newData[key];
+                            setLocalJson(newData);
+                            onChange(newData);
+                        }}
+                    />
+                ))}
+            </div>
         )}
-      </div>
-
-      <div style={{ marginTop: 16, textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: 10 }}>
-        <Space>
-            <Text type="secondary" style={{fontSize: 12}}>
-               Select a Type to create a Field, or click (+) to create a Folder.
-            </Text>
-            <Button type="primary" icon={<SaveOutlined />} onClick={saveChanges}>
-            Save & Push to Device
-            </Button>
-        </Space>
       </div>
     </div>
   );

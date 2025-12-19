@@ -977,7 +977,7 @@ const handleSaveDashboardConfig = async (config) => {
       render: (_, record) => (
         <Space>
           {/* --- EDIT BUTTON ADDED HERE --- */}
-          <Tooltip title="Edit Device & Payload">
+          <Tooltip >
             <Button
               size="small"
               type="default"
@@ -990,7 +990,7 @@ const handleSaveDashboardConfig = async (config) => {
           </Tooltip>
 
           {/* --- DELETE BUTTON (Existing) --- */}
-          <Tooltip title="Delete Device">
+          <Tooltip >
             <Button
               size="small"
               danger
@@ -1442,49 +1442,39 @@ const handleSaveDashboardConfig = async (config) => {
             <Form.Item name="firmware_version" label="Firmware Version">
               <Input placeholder="v1.0.2" />
             </Form.Item>
-            <Form.Item name="development_enabled" label="Development Mode" valuePropName="checked" initialValue={true}>
+           <Form.Item name="development_enabled" label="Development Mode" valuePropName="checked" initialValue={true}>
               <Switch />
             </Form.Item>
-            <Form.Item label="Payload (JSON)">
-              <div>
-                <Button
-                  onClick={() => {
-                    setShowPayloadBuilder(false);
-                    setTimeout(() => {
-                      // Get the latest payload from device details OR payloadObj
-                      const currentPayload = selectedDeviceDetails?.payload || payloadObj || {};
-                      
-                      // Force fresh clone into builder
-                      setPayloadObj(JSON.parse(JSON.stringify(currentPayload)));
-                      
-                      // Connect WebSocket if editing existing device
-                      if (selectedDeviceDetails?.device_token) {
-                        // âœ… Capture the socket instance directly from the function return
-                        const socket = connectWebSocket(selectedDeviceDetails.device_token);
-                        
-                        setTimeout(() => {
-                          // âœ… Use the captured 'socket' variable, NOT the 'ws' state which might be stale
-                          if (socket && socket.readyState === 1) { 
-                            socket.send(JSON.stringify({ action: "get", path: "" }));
-                          }
-                        }, 500);
-                      }
-                      
-                      setShowPayloadBuilder(true);
-                    }, 100);
-                  }}
-                >
-                  Open Payload Builder
-                </Button>
 
-                {Object.keys(payloadObj).length > 0 && (
-                  <TextArea rows={4} value={JSON.stringify(payloadObj, null, 2)} readOnly style={{ marginTop: 10, background: '#f5f5f5' }} />
-                )}
+            {/* 🔥 UPDATED: Payload Builder Embedded Directly */}
+            <Form.Item label="Payload Structure">
+              <div style={{ 
+                  border: '1px solid #d9d9d9', 
+                  borderRadius: 8, 
+                  padding: '12px', 
+                  backgroundColor: '#fff' 
+              }}>
+                <JsonBuilderComponent
+                  jsonData={payloadObj}
+                  onChange={(updatedJson) => {
+                    setPayloadObj(updatedJson);
+                    
+                  }}
+                />
               </div>
             </Form.Item>
-            <div style={{ textAlign: 'right' }}>
+
+            <div style={{ textAlign: 'right', marginTop: 24 }}>
               <Space>
-                <Button onClick={() => { setIsDeviceModalOpen(false); deviceForm.resetFields(); setPayloadObj({}); }}>Cancel</Button>
+                <Button onClick={() => { 
+                    setIsDeviceModalOpen(false); 
+                    deviceForm.resetFields(); 
+                    setPayloadObj({}); 
+                    setIsEditingDevice(false);
+                    window.editingDeviceId = null;
+                }}>
+                  Cancel
+                </Button>
                 <Button type="primary" htmlType="submit" loading={deviceSubmitting}>
                   {isEditingDevice ? 'Update Device' : 'Create Device'} 
                 </Button>

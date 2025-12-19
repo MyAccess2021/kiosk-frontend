@@ -47,40 +47,51 @@ import {
 } from '../utils/permissions';
 import JsonBuilderComponent from "./JsonBuilderComponent";
 import { createDeviceWebSocket } from "../services/websocketService";
+import DashboardBuilder from './DashboardBuilder';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-// Helper to apply WebSocket updates to a JSON object based on path
 const applyPayloadUpdate = (currentPayload, path, newValue) => {
-  // Deep clone to ensure React detects state change
+  console.log("🔹 [MERGE START] Path:", path);
+  // console.log("   Current Payload Keys:", Object.keys(currentPayload || {}));
+  // console.log("   New Value:", newValue);
+
   const newPayload = JSON.parse(JSON.stringify(currentPayload || {}));
 
-  // ROOT update - replace entire payload
+  // CASE 1: Root Update
   if (!path || path === "" || path === "/") {
-    return JSON.parse(JSON.stringify(newValue));
+      if (newValue && newValue.data && newValue.data.time) {
+          const timestampKey = String(newValue.data.time);
+          newPayload[timestampKey] = newValue.data; // Save as History
+          newPayload["data"] = newValue.data;       // Save as Latest
+          console.log(`✅ [MERGE SUCCESS] Saved under key: ${timestampKey} & data`);
+          return newPayload;
+      }
+      // Standard Merge
+      const merged = { ...newPayload, ...newValue };
+      console.log("✅ [MERGE SUCCESS] Root merged. Keys:", Object.keys(merged));
+      return merged;
   }
 
-  // NESTED update
-  const keys = path.split("/").filter(k => k); // Remove empty strings
+  // CASE 2: Nested Update
+  const keys = path.split("/").filter(k => k);
   let pointer = newPayload;
-
   keys.forEach((key, index) => {
     if (index === keys.length - 1) {
-      // Final level → apply update
-      pointer[key] = newValue;
-    } else {
-      // Go deeper OR create empty object if missing
-      if (!pointer[key] || typeof pointer[key] !== "object") {
-        pointer[key] = {};
+      if (typeof newValue === 'object' && newValue !== null && !Array.isArray(newValue)) {
+          pointer[key] = { ...(pointer[key] || {}), ...newValue };
+      } else {
+          pointer[key] = newValue;
       }
+    } else {
+      if (!pointer[key] || typeof pointer[key] !== "object") pointer[key] = {};
       pointer = pointer[key];
     }
   });
-
+  
   return newPayload;
 };
-
 const ApplicationPage = ({ theme: themeProp }) => {
   const { token } = theme.useToken();
   const [modal, contextHolder] = Modal.useModal();
@@ -123,37 +134,54 @@ const ApplicationPage = ({ theme: themeProp }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [ws, setWs] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+  // Add these NEW states (around line 80-100, with other useState declarations)
+const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
+const [dashboardDevice, setDashboardDevice] = useState(null);
 
-  // WS: Receive messages
+ // --- WebSocket Message Handler ---
   const handleWsMessage = (data) => {
-    // If GET response (full payload)
-    if (data.action === "get" && data.status === "ok") {
-      console.log("✅ GET response, updating payload:", data.payload);
-      const freshPayload = JSON.parse(JSON.stringify(data.payload));
-      
-      // Update both states atomically
-      setPayloadObj(freshPayload);
-      setSelectedDeviceDetails(prev =>
-        prev ? { ...prev, payload: freshPayload } : prev
-      );
-      
-      return;
+    // 1. Handle Initial GET / SUBSCRIBE Response (Full Snapshot)
+    if (data.action === "get" || data.action === "subscribed") {
+        console.log("🔍 [RAW BACKEND RESPONSE - REFRESH]:", JSON.stringify(data, null, 2));
+    }
+    if ((data.action === "get" || data.action === "subscribed") && data.status === "ok") {
+        console.log("✅ [WS] Initial Data Received");
+        
+        let freshPayload = {};
+        
+        // Handle 'snapshots' array from subscribe response
+        if (data.snapshots && Array.isArray(data.snapshots)) {
+            data.snapshots.forEach(snap => {
+                freshPayload = { ...freshPayload, ...snap.payload };
+            });
+        } 
+        // Handle standard 'payload' from GET response
+        else if (data.payload) {
+            freshPayload = data.payload;
+        }
+
+        setPayloadObj(freshPayload);
+        
+        // Update device details for View Mode
+        setSelectedDeviceDetails(prev => 
+            prev ? { ...prev, payload: freshPayload } : prev
+        );
+        return;
     }
 
-    // If live update event
+    // 2. Handle Live Events (PUT/PATCH updates from Device)
+    // Doc says: event: "value_changed", source: "web" or "hardware"
     if (data.type === "device_event" && data.event === "value_changed") {
-      console.log("🔴 LIVE UPDATE EVENT - path:", data.path, "payload:", data.payload);
+        console.log("⚡ [WS] Live Update:", data.path, data.payload);
 
-      // 1. ALWAYS update the Payload Object (This drives the Builder/Edit Modal)
-      setPayloadObj((prev) => applyPayloadUpdate(prev, data.path, data.payload));
+        // Merge logic (reuse the applyPayloadUpdate helper we fixed earlier)
+        setPayloadObj((prev) => applyPayloadUpdate(prev, data.path, data.payload));
 
-      // 2. CONDITIONALLY update Selected Device Details (This drives the View Card)
-      // Only runs if a device is currently selected in view mode
-      setSelectedDeviceDetails((prev) => {
-        if (!prev) return prev;
-        const updatedPayload = applyPayloadUpdate(prev.payload, data.path, data.payload);
-        return { ...prev, payload: updatedPayload };
-      });
+        setSelectedDeviceDetails((prev) => {
+            if (!prev) return prev;
+            const updated = applyPayloadUpdate(prev.payload, data.path, data.payload);
+            return { ...prev, payload: updated };
+        });
     }
   };
 
@@ -170,7 +198,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
     });
 
     setWs(socket);
-    return socket; // ✅ RETURN THE SOCKET INSTANCE
+    return socket; // âœ… RETURN THE SOCKET INSTANCE
   };
 
   const sendPut = (path, payload) => {
@@ -308,14 +336,14 @@ const ApplicationPage = ({ theme: themeProp }) => {
   };
 
   const closeDetailView = () => {
-    setViewMode('list');
-    setSelectedApplication(null);
-    setIsEditModalOpen(false);
-    setViewingApplicationCameras([]);
-    setViewingApplicationDevices([]);
-    setSelectedCameraDetails(null);
-    setSelectedDeviceDetails(null);
-  };
+  setViewMode('list');
+  setSelectedApplication(null);
+  setIsEditModalOpen(false);
+  setViewingApplicationCameras([]);
+  setViewingApplicationDevices([]);
+  setSelectedCameraDetails(null);
+  // Remove selectedDeviceDetails reference (deleted state)
+};
 
   const handleEditToggle = () => {
     if (!canUpdateApplication()) {
@@ -414,42 +442,68 @@ const ApplicationPage = ({ theme: themeProp }) => {
     });
   };
 
-  const handleEditDevice = (device) => {
-    setSelectedDeviceDetails(null);
-    setIsEditingDevice(false);
+  // const handleEditDevice = (device) => {
+  //   setSelectedDeviceDetails(null);
+  //   setIsEditingDevice(false);
 
-    // ⭐ Connect WS when entering edit mode
-    if (device.device_token) {
-      connectWebSocket(device.device_token);
+  //   // â­ Connect WS when entering edit mode
+  //   if (device.device_token) {
+  //     connectWebSocket(device.device_token);
 
-      // Fetch latest payload
-      setTimeout(() => {
-        ws?.send(JSON.stringify({ action: "get", path: "" }));
-      }, 300);
-    }
+  //     // Fetch latest payload
+  //     setTimeout(() => {
+  //       ws?.send(JSON.stringify({ action: "get", path: "" }));
+  //     }, 300);
+  //   }
     
-    // ✅ Then set edit mode after a brief delay
-    setTimeout(() => {
-      setIsEditingDevice(true);
+  //   // âœ… Then set edit mode after a brief delay
+  //   setTimeout(() => {
+  //     setIsEditingDevice(true);
       
-      deviceForm.setFieldsValue({
-        device_uid: device.device_uid,
-        device_name: device.device_name,
-        description: device.description,
-        protocol: device.protocol,
-        firmware_version: device.firmware_version,
-        development_enabled: device.development_enabled,
-      });
+  //     deviceForm.setFieldsValue({
+  //       device_uid: device.device_uid,
+  //       device_name: device.device_name,
+  //       description: device.description,
+  //       protocol: device.protocol,
+  //       firmware_version: device.firmware_version,
+  //       development_enabled: device.development_enabled,
+  //     });
 
-      const devicePayload = device.payload || {};
-      setPayloadObj(devicePayload);
+  //     const devicePayload = device.payload || {};
+  //     setPayloadObj(devicePayload);
       
-      window.editingDeviceId = device.id;
+  //     window.editingDeviceId = device.id;
       
-      setIsDeviceModalOpen(true);
-    }, 50);
-  };
-
+  //     setIsDeviceModalOpen(true);
+  //   }, 50);
+  // };
+// âœ… ADD THIS NEW FUNCTION
+const handleSaveDashboardConfig = async (config) => {
+  try {
+    // Save to backend
+    await updateDevice(config.device_id, { 
+      ui_config: config.ui_config 
+    });
+    
+    notification.success({
+      message: 'Success',
+      description: 'Dashboard configuration saved successfully!',
+    });
+    
+    setShowDashboardBuilder(false);
+    setDashboardDevice(null);
+    
+    // Refresh device list
+    if (selectedApplication) {
+      await fetchApplicationDetails(selectedApplication.id);
+    }
+  } catch (error) {
+    notification.error({
+      message: 'Save Failed',
+      description: error.message || 'Failed to save dashboard configuration.',
+    });
+  }
+};
   const handleDeleteDevice = async (deviceId, deviceName) => {
     setLoading(true);
     try {
@@ -474,7 +528,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
   // ========= DEVICE MODAL =========
 
   const openDeviceModal = () => {
-    // ✅ Reset all states for CREATE mode
+    // âœ… Reset all states for CREATE mode
     setSelectedDeviceDetails(null);
     setIsEditingDevice(false);
     setIsDeviceModalOpen(false); // Close first
@@ -483,7 +537,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
     setPayloadObj({});
     setShowPayloadBuilder(false);
     
-    // ✅ Open modal after a brief delay to ensure clean state
+    // âœ… Open modal after a brief delay to ensure clean state
     setTimeout(() => {
         setIsDeviceModalOpen(true);
     }, 100);
@@ -529,7 +583,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
         notification.success({ message: 'Device created successfully' });
       }
       
-      // ✅ Clean up
+      // âœ… Clean up
       setIsDeviceModalOpen(false);
       deviceForm.resetFields();
       setPayloadObj({});
@@ -893,45 +947,69 @@ const ApplicationPage = ({ theme: themeProp }) => {
         </Space>
       ),
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 100,
-      className: 'actions-column',
-      render: (_, record) => (
-        <Space size={4}>
-          <Tooltip >
-            <Button 
-              size="small"
-              icon={<EditOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEditDevice(record);
-              }}
-            />
-          </Tooltip>
-          <Tooltip >
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                modal.confirm({
-                  title: `Delete ${record.device_name}?`,
-                  content: "This action cannot be undone.",
-                  okText: "Delete",
-                  okType: "danger",
-                  cancelText: "Cancel",
-                  onOk: () => handleDeleteDevice(record.id, record.device_name)
-                });
-              }}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    }
+   {
+  title: 'Actions',
+  key: 'actions',
+  width: 60,
+  className: 'actions-column',
+  render: (_, record) => (
+    <Tooltip title="Delete Device">
+      <Button
+        size="small"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={(e) => {
+          e.stopPropagation();
+          modal.confirm({
+            title: `Delete ${record.device_name}?`,
+            content: "This action cannot be undone.",
+            okText: "Delete",
+            okType: "danger",
+            cancelText: "Cancel",
+            onOk: () => handleDeleteDevice(record.id, record.device_name)
+          });
+        }}
+      />
+    </Tooltip>
+  ),
+}
   ];
+ // ... (Previous code remains same)
+
+  if (showDashboardBuilder && dashboardDevice) {
+    // 1. MERGE LOGIC: Combine Static Device Data + Live WebSocket Updates
+    const liveDevice = {
+        ...dashboardDevice,
+        // If we have live updates (payloadObj), use them. Otherwise use initial data.
+        payload: (payloadObj && Object.keys(payloadObj).length > 0) 
+                 ? payloadObj 
+                 : dashboardDevice.payload
+    };
+
+    return (
+      <DashboardBuilder
+        // 🔥 CRITICAL FIX: Pass 'liveDevice' instead of 'dashboardDevice'
+        device={liveDevice} 
+        
+        onBack={() => {
+          setShowDashboardBuilder(false);
+          setDashboardDevice(null);
+        }}
+        onSave={handleSaveDashboardConfig}
+        
+        // Pass WebSocket Send Function to Dashboard
+        onWriteData={(msg) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log("[UI -> WS] Sending:", msg);
+                ws.send(JSON.stringify(msg));
+            } else {
+                notification.error({ message: "WebSocket Disconnected" });
+            }
+        }}
+      />
+    );
+  }
+
 
   // ========= RENDER =========
 
@@ -1052,93 +1130,36 @@ const ApplicationPage = ({ theme: themeProp }) => {
             title={<><HddOutlined style={{ marginRight: 8 }} />Assigned Devices ({viewingApplicationDevices.length})</>}
             extra={<Button type="primary" icon={<PlusOutlined />} onClick={openDeviceModal}>Add Device</Button>}
           >
-            {viewingApplicationDevices.length === 0 ? (
-              <Alert message="No Devices Assigned" description="This application has no devices assigned yet." type="info" showIcon />
-            ) : (
-              <div style={{ display: 'flex', gap: 16, flexDirection: isMobile ? 'column' : 'row' }}>
-                <div style={{ width: !isMobile && selectedDeviceDetails ? '65%' : '100%', transition: 'width 0.3s' }}>
-                  <Table
-                    columns={viewDevicesColumns}
-                    dataSource={viewingApplicationDevices}
-                    rowKey="id"
-                    pagination={false}
-                    size="small"
-                    scroll={{ x: 400 }}
-                    rowClassName={(record) => selectedDeviceDetails?.id === record.id ? 'ant-table-row-selected' : ''}
-                    onRow={(record) => ({
-                      onClick: (e) => {
-                        const clickedCell = e.target.closest('.ant-table-cell');
-                        if (clickedCell?.classList.contains('actions-column')) {
-                          return;
-                        }
-                        
-                        setIsEditingDevice(false);
-                        setSelectedDeviceDetails(record);
-                        if (record.device_token) {
-                          connectWebSocket(record.device_token);
-                          setTimeout(() => {
-                            ws?.send(JSON.stringify({ action: "get", path: "" }));
-                          }, 300);
-                        }
-                      },
-                      style: { cursor: 'pointer' },
-                    })}
-                  />
-                </div>
-                {!isMobile && selectedDeviceDetails && (
-                  <div style={{ width: '35%', transition: 'width 0.3s' }}>
-                    <Card
-                      title={selectedDeviceDetails.device_name || 'Device Details'}
-                      extra={<Button type="text" icon={<CloseOutlined />} onClick={() => setSelectedDeviceDetails(null)} />}
-                      size="small"
-                      bodyStyle={{ padding: '12px' }}
-                    >
-                      <Descriptions column={1} size="small" bordered colon={false}>
-                        <Descriptions.Item label="UID" labelStyle={{ width: '40%' }}>
-                          <Text ellipsis style={{ fontSize: 12 }}>{selectedDeviceDetails.device_uid}</Text>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Protocol">{selectedDeviceDetails.protocol}</Descriptions.Item>
-                        <Descriptions.Item label="Firmware">
-                          {selectedDeviceDetails.firmware_version || '-'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Dev Mode">
-                          <Tag color={selectedDeviceDetails.development_enabled ? 'green' : 'default'}>
-                            {selectedDeviceDetails.development_enabled ? 'ON' : 'OFF'}
-                          </Tag>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Last Update">
-                          {selectedDeviceDetails.last_payload_update
-                            ? new Date(selectedDeviceDetails.last_payload_update).toLocaleDateString('en-IN', { 
-                                day: '2-digit', 
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : 'Never'}
-                        </Descriptions.Item>
-                      </Descriptions>
-                      {selectedDeviceDetails.payload && Object.keys(selectedDeviceDetails.payload).length > 0 && (
-                        <div style={{ marginTop: 12 }}>
-                          <Text strong style={{ fontSize: 12 }}>Payload:</Text>
-                          <pre style={{
-                            background: token.colorBgLayout,
-                            padding: 8,
-                            borderRadius: 6,
-                            fontSize: 11,
-                            maxHeight: 150,
-                            overflow: 'auto',
-                            marginTop: 6,
-                            lineHeight: 1.4
-                          }}>
-                            {JSON.stringify(selectedDeviceDetails.payload, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </Card>
-                  </div>
-                )}
-              </div>
-            )}
+        {viewingApplicationDevices.length === 0 ? (
+  <Alert message="No Devices Assigned" description="This application has no devices assigned yet." type="info" showIcon />
+) : (
+  <Table
+    columns={viewDevicesColumns}
+    dataSource={viewingApplicationDevices}
+    rowKey="id"
+    pagination={false}
+    size="small"
+    scroll={{ x: 400 }}
+    onRow={(record) => ({
+      onClick: (e) => {
+        const clickedCell = e.target.closest('.ant-table-cell');
+        if (clickedCell?.classList.contains('actions-column')) {
+          return;
+        }
+        
+        // Open Dashboard Builder
+        setDashboardDevice(record);
+        setShowDashboardBuilder(true);
+        
+        // Connect WebSocket
+        if (record.device_token) {
+          connectWebSocket(record.device_token);
+        }
+      },
+      style: { cursor: 'pointer' },
+    })}
+  />
+)}
           </Card>
         </Spin>
 
@@ -1167,7 +1188,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
           )}
         </Modal>
 
-        {/* Device Details Modal - Mobile Only */}
+        {/* Device Details Modal - Mobile Only
         <Modal
           title={selectedDeviceDetails?.device_name || 'Device Details'}
           open={isMobile && selectedDeviceDetails !== null && !isDeviceModalOpen && !isEditingDevice}
@@ -1227,7 +1248,7 @@ const ApplicationPage = ({ theme: themeProp }) => {
               </pre>
             </div>
           )}
-        </Modal>
+        </Modal> */}
 
         {/* Edit Application Modal */}
         <Modal
@@ -1400,11 +1421,11 @@ const ApplicationPage = ({ theme: themeProp }) => {
                       
                       // Connect WebSocket if editing existing device
                       if (selectedDeviceDetails?.device_token) {
-                        // ✅ Capture the socket instance directly from the function return
+                        // âœ… Capture the socket instance directly from the function return
                         const socket = connectWebSocket(selectedDeviceDetails.device_token);
                         
                         setTimeout(() => {
-                          // ✅ Use the captured 'socket' variable, NOT the 'ws' state which might be stale
+                          // âœ… Use the captured 'socket' variable, NOT the 'ws' state which might be stale
                           if (socket && socket.readyState === 1) { 
                             socket.send(JSON.stringify({ action: "get", path: "" }));
                           }
@@ -1670,7 +1691,9 @@ const ApplicationPage = ({ theme: themeProp }) => {
           }}
         />
       </Modal>
+   
     </div>
+    
   );
 };
 

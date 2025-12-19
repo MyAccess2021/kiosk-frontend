@@ -45,3 +45,21 @@ export const deleteDevice = (id) =>
   request(`/applications/devices/${id}/`, {
     method: 'DELETE',
   });
+// Send WRITE command to backend via HTTP
+export const sendWriteCommand = (deviceToken, fieldName, type, value) => {
+  return request(`/applications/push/${deviceToken}/`, {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "dict",
+        value: {
+          [fieldName]: {
+            type,
+            value
+          }
+        }
+      }
+    })
+  });
+};
+

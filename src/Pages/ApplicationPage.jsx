@@ -137,7 +137,29 @@ const ApplicationPage = ({ theme: themeProp }) => {
   // Add these NEW states (around line 80-100, with other useState declarations)
 const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
 const [dashboardDevice, setDashboardDevice] = useState(null);
+// --- ADD THIS FUNCTION ---
+  const handleEditDevice = (device) => {
+    // 1. Reset states
+    setIsEditingDevice(true);
+    window.editingDeviceId = device.id; // Store ID for update logic
 
+    // 2. Pre-fill the form
+    deviceForm.setFieldsValue({
+      device_uid: device.device_uid,
+      device_name: device.device_name,
+      description: device.description,
+      protocol: device.protocol,
+      firmware_version: device.firmware_version,
+      development_enabled: device.development_enabled,
+    });
+
+    // 3. Load existing payload
+    const existingPayload = device.payload || {};
+    setPayloadObj(existingPayload);
+
+    // 4. Open the modal
+    setIsDeviceModalOpen(true);
+  };
  // --- WebSocket Message Handler ---
   const handleWsMessage = (data) => {
     // 1. Handle Initial GET / SUBSCRIBE Response (Full Snapshot)
@@ -916,7 +938,7 @@ const handleSaveDashboardConfig = async (config) => {
     },
   ];
 
-  const viewDevicesColumns = [
+ const viewDevicesColumns = [
     {
       title: 'Device Name',
       dataIndex: 'device_name',
@@ -947,32 +969,48 @@ const handleSaveDashboardConfig = async (config) => {
         </Space>
       ),
     },
-   {
-  title: 'Actions',
-  key: 'actions',
-  width: 60,
-  className: 'actions-column',
-  render: (_, record) => (
-    <Tooltip title="Delete Device">
-      <Button
-        size="small"
-        danger
-        icon={<DeleteOutlined />}
-        onClick={(e) => {
-          e.stopPropagation();
-          modal.confirm({
-            title: `Delete ${record.device_name}?`,
-            content: "This action cannot be undone.",
-            okText: "Delete",
-            okType: "danger",
-            cancelText: "Cancel",
-            onOk: () => handleDeleteDevice(record.id, record.device_name)
-          });
-        }}
-      />
-    </Tooltip>
-  ),
-}
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 100, // Increased width for 2 buttons
+      className: 'actions-column',
+      render: (_, record) => (
+        <Space>
+          {/* --- EDIT BUTTON ADDED HERE --- */}
+          <Tooltip title="Edit Device & Payload">
+            <Button
+              size="small"
+              type="default"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditDevice(record);
+              }}
+            />
+          </Tooltip>
+
+          {/* --- DELETE BUTTON (Existing) --- */}
+          <Tooltip title="Delete Device">
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                modal.confirm({
+                  title: `Delete ${record.device_name}?`,
+                  content: "This action cannot be undone.",
+                  okText: "Delete",
+                  okType: "danger",
+                  cancelText: "Cancel",
+                  onOk: () => handleDeleteDevice(record.id, record.device_name)
+                });
+              }}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    }
   ];
  // ... (Previous code remains same)
 

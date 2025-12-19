@@ -1,551 +1,376 @@
-
-import React, { useState, useEffect, useRef } from "react";
-import { Button, Input, Select, Typography, Tooltip, Space } from "antd";
-import { PlusOutlined, DeleteOutlined, CaretDownOutlined, CaretRightOutlined } from "@ant-design/icons";
+import React, { useState, useEffect } from 'react';
+import { Button, Input, Select, Space, Typography, Tooltip, Tag } from 'antd';
+import { 
+  PlusOutlined, 
+  DeleteOutlined, 
+  CaretRightOutlined, 
+  CaretDownOutlined, 
+  SaveOutlined,
+  FileOutlined,
+  FolderOutlined
+} from '@ant-design/icons';
 
 const { Text } = Typography;
 const { Option } = Select;
 
-// New Component to handle List/Dict editing safely
-const ComplexInput = ({ value, type, onChange }) => {
-  const [text, setText] = useState("");
-
-  // Sync internal text state with the actual node value (from WS or Parent)
-  useEffect(() => {
-    setText(JSON.stringify(value));
-  }, [value]);
-
-  const handleBlur = () => {
-    try {
-      const parsed = JSON.parse(text);
-      // Validate types
-      if (type === 'list' && !Array.isArray(parsed)) {
-        setText(JSON.stringify(value)); // Revert if not array
-        return;
-      }
-      if (type === 'dict' && (typeof parsed !== 'object' || Array.isArray(parsed))) {
-        setText(JSON.stringify(value)); // Revert if not object
-        return;
-      }
-      onChange(parsed);
-    } catch (e) {
-      // Invalid JSON, revert to last known good value
-      setText(JSON.stringify(value));
-    }
-  };
-
-  return (
-    <Input
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={handleBlur}
-      placeholder={type === 'list' ? "[1, 2]" : "{\"key\": \"val\"}"}
-      size="small"
-      style={{ 
-        flex: "1 1 140px",
-        minWidth: 100,
-        fontFamily: "'Roboto Mono', monospace",
-        fontSize: 12,
-        color: type === 'list' ? "#f57c00" : "#9c27b0"
-      }}
-    />
-  );
-};
-
-const NodeEditor = ({ node, onChange, onDelete, level = 0 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+// --- RECURSIVE NODE COMPONENT ---
+const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
+  const [expanded, setExpanded] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
-  const updateKey = (newKey) => onChange({ ...node, key: newKey });
-
-  const updateType = (newType) => {
-    if (newType === "dict") {
-      onChange({ ...node, type: "dict", value: {}, children: null });
-      return;
-    }
-    if (newType === "list") {
-      onChange({ ...node, type: "list", value: [], children: null });
-      return;
-    }
-    onChange({ ...node, type: newType, value: newType === "boolean" ? "false" : "", children: null });
-  };
-
-  const updateValue = (newValue) => onChange({ ...node, value: newValue });
-
-  const addChild = () => {
-    const newChild = { key: "", type: null, value: null, children: null };
-    onChange({
-      ...node,
-      type: null,
-      value: null,
-      children: [...(node.children || []), newChild],
-    });
-  };
-
-  const updateChild = (index, updatedChild) => {
-    const kids = [...(node.children || [])];
-    kids[index] = updatedChild;
-    onChange({ ...node, children: kids });
-  };
-
-  const removeChild = (index) => {
-    const kids = (node.children || []).filter((_, i) => i !== index);
-    onChange({ ...node, children: kids.length > 0 ? kids : null });
-  };
-
-  const hasChildren = node.children && node.children.length > 0;
-  const hasType = node.type !== null && node.type !== undefined;
+  // 1. CHECK TYPE OF DATA
+  // Is it a completed IoT Field? (Has 'type' and 'value')
+  const isIoTField = typeof data === 'object' && data !== null && 'type' in data && 'value' in data;
   
-  const isDictType = node.type === "dict";
-  const isListType = node.type === "list";
+  // Is it a Folder? (Object but NOT an IoT Field)
+  const isFolder = typeof data === 'object' && data !== null && !Array.isArray(data) && !isIoTField;
   
-  // Untyped objects (containers) can add children
-  const canAddChildren = !hasType; 
+  // Is it a List?
+  const isList = Array.isArray(data);
+
+  // Is it a fresh/primitive node? (String/Number/Null) -> User hasn't decided yet
+  const isNeutral = !isIoTField && !isFolder && !isList;
+
+  const indentSize = 24; 
+  const currentIndent = depth * indentSize;
+
+  // --- HANDLERS ---
+
+  // User Selects a Type -> Convert to IoT Field Structure
+  const handleTypeSelect = (type) => {
+      let defaultValue = "";
+      if (type === 'int' || type === 'float') defaultValue = 0;
+      if (type === 'boolean') defaultValue = false;
+      
+      // Update data to { type: "...", value: ... }
+      onUpdate({ type: type, value: defaultValue });
+  };
+
+  // User Changes Value inside IoT Field
+  const handleIoTValueChange = (val) => {
+      const newType = data.type;
+      let finalVal = val;
+
+      if (newType === 'int' || newType === 'float') {
+          if (!isNaN(val) && val !== '') finalVal = Number(val);
+      } else if (newType === 'boolean') {
+          // Antd Select handles boolean value directly usually, but input returns string
+          // We will handle boolean via Select in UI
+      }
+
+      onUpdate({ ...data, value: finalVal });
+  };
+
+  // User Clicks (+) -> Convert to Folder OR Add Child
+  const handlePlusClick = () => {
+      setExpanded(true);
+      if (isFolder) {
+          // Add child to existing folder
+          const newKey = `prop_${Object.keys(data).length + 1}`;
+          onUpdate({ ...data, [newKey]: "" });
+      } else if (isList) {
+          // Add item to list
+          onUpdate([...data, ""]);
+      } else {
+          // 🔥 NEUTRAL STATE: Convert Primitive to Folder
+          // User chose (+) instead of Type. So it becomes a Folder.
+          const newKey = "prop_1";
+          onUpdate({ [newKey]: "" }); 
+      }
+  };
 
   return (
-    <div style={{ 
-      borderLeft: level > 0 ? '2px solid #e8eaed' : 'none',
-      paddingLeft: level > 0 ? 16 : 0,
-      marginBottom: 4
-    }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 12px",
-          background: isHovered ? "#f8f9fa" : "#fff",
-          borderRadius: 4,
-          border: `1px solid ${isHovered ? "#dadce0" : "#e8eaed"}`,
-          transition: "all 0.2s",
-          flexWrap: "wrap",
-          minHeight: 48
+    <div style={{ position: 'relative' }}>
+      {/* ROW */}
+      <div 
+        style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            padding: '6px 0', 
+            paddingLeft: currentIndent,
+            backgroundColor: isHovered ? '#f9f9f9' : 'transparent',
+            borderRadius: 4,
+            whiteSpace: 'nowrap'
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {hasChildren ? (
-          <Button
-            type="text"
-            size="small"
-            icon={isExpanded ? <CaretDownOutlined /> : <CaretRightOutlined />}
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{ 
-              padding: 0, 
-              width: 24, 
-              height: 24,
-              minWidth: 24,
-              color: "#5f6368",
-              flexShrink: 0
-            }}
-          />
-        ) : (
-          <div style={{ width: 24, flexShrink: 0 }} />
+        {/* Connector Line */}
+        {depth > 0 && (
+            <div style={{
+                position: 'absolute',
+                left: currentIndent - 12,
+                top: 0,
+                bottom: 0,
+                borderLeft: '1px dashed #d9d9d9'
+            }} />
         )}
 
-        <Input
-          value={node.key}
-          onChange={(e) => updateKey(e.target.value)}
-          placeholder="key"
-          size="small"
-          style={{ 
-            flex: "1 1 140px",
-            minWidth: 100,
-            maxWidth: 200,
-            fontFamily: "'Roboto Mono', monospace",
-            fontSize: 13,
-            border: "1px solid #dadce0",
-            borderRadius: 4
-          }}
-        />
-
-        <Text 
-          style={{ 
-            color: "#5f6368", 
-            fontSize: 14,
-            flexShrink: 0,
-            display: hasType || hasChildren ? "inline" : "none"
-          }}
+        {/* Expander Icon (Only for Folders/Lists) */}
+        <div 
+            style={{ width: 20, cursor: 'pointer', display: 'flex', justifyContent: 'center', marginRight: 4 }}
+            onClick={() => setExpanded(!expanded)}
         >
-          :
-        </Text>
+            {(isFolder || isList) && (
+                expanded ? <CaretDownOutlined style={{fontSize: 10, color: '#999'}} /> : <CaretRightOutlined style={{fontSize: 10, color: '#999'}} />
+            )}
+        </div>
 
-        {hasType && (
-          <>
-            <Select 
-              value={node.type} 
-              onChange={updateType} 
-              size="small"
-              style={{ 
-                flex: "0 0 auto",
-                minWidth: 90,
-                fontFamily: "'Roboto Mono', monospace",
-                fontSize: 12
-              }}
-            >
-              <Option value="string">
-                <Text style={{ color: "#1a73e8", fontFamily: "'Roboto Mono', monospace" }}>string</Text>
-              </Option>
-              <Option value="int">
-                <Text style={{ color: "#e8710a", fontFamily: "'Roboto Mono', monospace" }}>int</Text>
-              </Option>
-              <Option value="float">
-                <Text style={{ color: "#e8710a", fontFamily: "'Roboto Mono', monospace" }}>float</Text>
-              </Option>
-              <Option value="boolean">
-                <Text style={{ color: "#137333", fontFamily: "'Roboto Mono', monospace" }}>bool</Text>
-              </Option>
-              <Option value="dict">
-                <Text style={{ color: "#9c27b0", fontFamily: "'Roboto Mono', monospace" }}>dict</Text>
-              </Option>
-              <Option value="list">
-                <Text style={{ color: "#f57c00", fontFamily: "'Roboto Mono', monospace" }}>list</Text>
-              </Option>
-            </Select>
-
-            {/* Controlled Inputs for List/Dict to prevent ghosting */}
-            {(isListType || isDictType) ? (
-              <ComplexInput 
-                value={node.value} 
-                type={node.type} 
-                onChange={updateValue} 
-              />
-            ) : node.type === "boolean" ? (
-              <Select 
-                value={node.value} 
-                onChange={updateValue} 
-                size="small"
-                style={{ 
-                  flex: "1 1 100px",
-                  minWidth: 80,
-                  fontFamily: "'Roboto Mono', monospace"
-                }}
-              >
-                <Option value="true">
-                  <Text style={{ color: "#137333", fontFamily: "'Roboto Mono', monospace" }}>true</Text>
-                </Option>
-                <Option value="false">
-                  <Text style={{ color: "#c5221f", fontFamily: "'Roboto Mono', monospace" }}>false</Text>
-                </Option>
-              </Select>
+        {/* KEY NAME INPUT */}
+        <div style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
+            {name !== null ? (
+                <>
+                    <Input 
+                        size="small"
+                        value={name}
+                        onChange={(e) => onRename(e.target.value)}
+                        style={{ 
+                            width: 140, 
+                            fontWeight: 600, 
+                            color: isIoTField ? '#52c41a' : '#1890ff', 
+                            border: isHovered ? '1px solid #d9d9d9' : '1px solid transparent', 
+                            background: 'transparent',
+                            marginRight: 4
+                        }}
+                    />
+                    <Text type="secondary">:</Text>
+                </>
             ) : (
-              <Input
-                value={node.value}
-                onChange={(e) => updateValue(e.target.value)}
-                placeholder={node.type === "string" ? '"value"' : "0"}
-                size="small"
-                style={{ 
-                  flex: "1 1 140px",
-                  minWidth: 100,
-                  fontFamily: "'Roboto Mono', monospace",
-                  fontSize: 13,
-                  color: node.type === "string" ? "#137333" : "#e8710a"
-                }}
-              />
+                <Text type="secondary" style={{marginRight: 8}}>-</Text> 
             )}
-          </>
-        )}
+        </div>
 
-        {!hasType && !hasChildren && (
-          <Select
-            placeholder="+ type"
-            onChange={updateType}
-            size="small"
-            allowClear
-            style={{ 
-              flex: "1 1 120px",
-              minWidth: 100,
-              fontFamily: "'Roboto Mono', monospace"
-            }}
-          >
-            <Option value="string">string</Option>
-            <Option value="int">int</Option>
-            <Option value="float">float</Option>
-            <Option value="boolean">boolean</Option>
-            <Option value="dict">dict</Option>
-            <Option value="list">list</Option>
-          </Select>
-        )}
-
-        {isHovered && (
-          <div style={{ 
-            marginLeft: "auto", 
-            display: "flex", 
-            gap: 6,
-            flexShrink: 0
-          }}>
-            {canAddChildren && (
-              <Tooltip title="Add nested field">
-                <Button 
-                  type="text"
-                  icon={<PlusOutlined />} 
-                  onClick={addChild}
-                  size="small"
-                  style={{ 
-                    color: "#1a73e8",
-                    height: 28,
-                    width: 28,
-                    padding: 0
-                  }}
-                />
-              </Tooltip>
+        {/* MIDDLE SECTION: TYPE & VALUE */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            
+            {/* Case 1: FOLDER or LIST */}
+            {(isFolder || isList) && (
+                <Tag color={isList ? "orange" : "blue"} style={{fontSize: 10}}>
+                    {isList ? 'List' : 'Folder'}
+                </Tag>
             )}
 
-            <Tooltip title="Delete field">
-              <Button 
-                type="text"
-                danger 
-                icon={<DeleteOutlined />} 
-                onClick={onDelete}
-                size="small"
-                style={{ 
-                  height: 28,
-                  width: 28,
-                  padding: 0
-                }}
-              />
-            </Tooltip>
-          </div>
-        )}
+            {/* Case 2: IOT FIELD (Type Selected) */}
+            {isIoTField && (
+                <>
+                    <Tag color="green" style={{fontSize: 10}}>Field</Tag>
+                    {/* Read-Only Type Display or Editable if needed */}
+                    <Select 
+                        size="small" 
+                        value={data.type} 
+                        style={{width: 90}} 
+                        onChange={(val) => handleTypeSelect(val)} // Allow changing type
+                    >
+                        <Option value="string">string</Option>
+                        <Option value="int">int</Option>
+                        <Option value="float">float</Option>
+                        <Option value="boolean">boolean</Option>
+                    </Select>
+
+                    {/* Value Input */}
+                    {data.type === 'boolean' ? (
+                        <Select 
+                            size="small" 
+                            value={data.value} 
+                            style={{width: 80}}
+                            onChange={(val) => onUpdate({...data, value: val})}
+                        >
+                            <Option value={true}>true</Option>
+                            <Option value={false}>false</Option>
+                        </Select>
+                    ) : (
+                        <Input 
+                            size="small"
+                            value={data.value}
+                            onChange={(e) => handleIoTValueChange(e.target.value)}
+                            style={{ width: 150 }}
+                            placeholder="Value"
+                        />
+                    )}
+                </>
+            )}
+
+            {/* Case 3: NEUTRAL (User needs to decide) */}
+            {isNeutral && (
+                <>
+                    <Select 
+                        size="small" 
+                        placeholder="Select Type" 
+                        style={{width: 120}} 
+                        onChange={handleTypeSelect}
+                        dropdownMatchSelectWidth={false}
+                    >
+                        <Option value="string">string</Option>
+                        <Option value="int">int</Option>
+                        <Option value="float">float</Option>
+                        <Option value="boolean">boolean</Option>
+                    </Select>
+                    <Input disabled size="small" placeholder="Value" style={{width: 120, opacity: 0.5}} />
+                </>
+            )}
+        </div>
+
+        {/* ACTIONS */}
+        <div style={{ width: 60, marginLeft: 10, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s' }}>
+            <Space size={2}>
+                {/* (+) Button: Hidden if it is an IoT Field */}
+                {!isIoTField && (
+                    <Tooltip >
+                        <Button 
+                            size="small" 
+                            type="text" 
+                            icon={isNeutral ? <FolderOutlined style={{color: '#1890ff'}} /> : <PlusOutlined style={{color: '#1890ff'}} />} 
+                            onClick={handlePlusClick} 
+                        />
+                    </Tooltip>
+                )}
+                
+                <Tooltip >
+                    <Button 
+                        size="small" 
+                        type="text" 
+                        danger 
+                        icon={<DeleteOutlined />} 
+                        onClick={onDelete} 
+                    />
+                </Tooltip>
+            </Space>
+        </div>
       </div>
 
-      {hasChildren && isExpanded && (
-        <div style={{ 
-          marginTop: 4,
-          marginLeft: 8
-        }}>
-          {node.children.map((child, index) => (
-            <NodeEditor
-              key={index}
-              node={child}
-              level={level + 1}
-              onChange={(updated) => updateChild(index, updated)}
-              onDelete={() => removeChild(index)}
-            />
-          ))}
+      {/* RECURSIVE CHILDREN RENDER */}
+      {expanded && (isFolder || isList) && (
+        <div style={{ position: 'relative' }}>
+            <div style={{
+                position: 'absolute',
+                left: currentIndent + 9, 
+                top: 0,
+                bottom: 12,
+                borderLeft: '1px dashed #d9d9d9',
+                zIndex: 0
+            }} />
+            
+            {Object.entries(data).map(([key, val], index) => (
+                <JsonNode 
+                    key={index}
+                    name={isList ? null : key}
+                    data={val}
+                    depth={depth + 1}
+                    onUpdate={(newVal) => {
+                        const newData = isList ? [...data] : { ...data };
+                        newData[key] = newVal;
+                        onUpdate(newData);
+                    }}
+                    onRename={(newKey) => {
+                        if(isList) return;
+                        const newData = { ...data };
+                        const temp = newData[key];
+                        delete newData[key];
+                        newData[newKey] = temp;
+                        onUpdate(newData);
+                    }}
+                    onDelete={() => {
+                        const newData = isList ? [...data] : { ...data };
+                        if (isList) {
+                            newData.splice(key, 1);
+                        } else {
+                            delete newData[key];
+                        }
+                        onUpdate(newData);
+                    }}
+                />
+            ))}
         </div>
       )}
     </div>
   );
 };
 
+// --- MAIN WRAPPER ---
 const JsonBuilderComponent = ({ jsonData, onChange }) => {
-  const [nodes, setNodes] = useState([]);
-  const prevJsonRef = useRef(null);
-  const updateTimeoutRef = useRef(null);
+  const [localJson, setLocalJson] = useState(jsonData || {});
 
   useEffect(() => {
-    // Clear any pending update
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-
-    // Debounce updates slightly to avoid rapid re-renders
-    updateTimeoutRef.current = setTimeout(() => {
-      const currentJsonString = JSON.stringify(jsonData);
-      const prevJsonString = JSON.stringify(prevJsonRef.current);
-      
-      // Only update nodes if the incoming JSON is different from what we last saw
-      if (currentJsonString !== prevJsonString) {
-        prevJsonRef.current = JSON.parse(currentJsonString);
-
-        if (jsonData && typeof jsonData === 'object' && Object.keys(jsonData).length > 0) {
-          const converted = Object.keys(jsonData).map((key) =>
-            convertJsonToNode(key, jsonData[key])
-          );
-          setNodes(converted);
-        } else {
-          setNodes([]);
-        }
-      }
-    }, 50); // 50ms debounce
-
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
+    setLocalJson(jsonData || {});
   }, [jsonData]);
 
-  const addRootNode = () => {
-    const newNode = { key: "", type: null, value: null, children: null };
-    const updated = [...nodes, newNode];
-    setNodes(updated);
-    sendToParent(updated);
+  const handleRootAdd = () => {
+      // Add a neutral field at root
+      const newKey = `root_${Object.keys(localJson).length + 1}`;
+      setLocalJson({ ...localJson, [newKey]: "" });
   };
 
-  const updateRootNode = (index, updatedNode) => {
-    const updated = [...nodes];
-    updated[index] = updatedNode;
-    setNodes(updated);
-    sendToParent(updated);
-  };
-
-  const deleteRootNode = (index) => {
-    const updated = nodes.filter((_, i) => i !== index);
-    setNodes(updated);
-    sendToParent(updated);
-  };
-
-  const sendToParent = (list) => {
-    const json = convertToJson(list);
-    onChange(json);
+  const saveChanges = () => {
+      onChange(localJson);
   };
 
   return (
-    <div style={{ 
-      padding: "16px 8px",
-      maxHeight: 600, 
-      overflowY: "auto",
-      background: "#fff",
-      borderRadius: 8
-    }}>
+    <div style={{ height: '60vh', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Header */}
+      <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text strong>Payload Structure</Text>
+          <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={handleRootAdd}>
+              Add Root Field
+          </Button>
+      </div>
+
+      {/* Tree Area */}
       <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "space-between",
-        marginBottom: 16,
-        paddingBottom: 12,
-        borderBottom: "1px solid #e8eaed"
+          flex: 1, 
+          overflow: 'auto', 
+          background: '#fff', 
+          border: '1px solid #d9d9d9', 
+          padding: 16, 
+          borderRadius: 4,
+          fontFamily: 'monospace'
       }}>
-        <Text strong style={{ 
-          fontSize: 16,
-          color: "#202124",
-          fontWeight: 500
-        }}>
-          Payload Structure
-        </Text>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          {nodes.length} {nodes.length === 1 ? "field" : "fields"}
-        </Text>
+        {Object.keys(localJson).length === 0 ? (
+            <div style={{textAlign:'center', marginTop: 40, color: '#ccc'}}>
+                <FileOutlined style={{fontSize: 24, marginBottom: 8}} />
+                <div>Empty Payload. Add fields to start.</div>
+            </div>
+        ) : (
+            Object.entries(localJson).map(([key, val], index) => (
+                <JsonNode 
+                    key={index}
+                    name={key}
+                    data={val}
+                    depth={0}
+                    onUpdate={(newVal) => {
+                        const newData = { ...localJson };
+                        newData[key] = newVal;
+                        setLocalJson(newData);
+                    }}
+                    onRename={(newKey) => {
+                        const newData = { ...localJson };
+                        const temp = newData[key];
+                        delete newData[key];
+                        newData[newKey] = temp;
+                        setLocalJson(newData);
+                    }}
+                    onDelete={() => {
+                        const newData = { ...localJson };
+                        delete newData[key];
+                        setLocalJson(newData);
+                    }}
+                />
+            ))
+        )}
       </div>
 
-      {nodes.length === 0 && (
-        <div
-          style={{
-            padding: "40px 20px",
-            background: "#f8f9fa",
-            borderRadius: 8,
-            border: "2px dashed #dadce0",
-            textAlign: "center",
-            marginBottom: 16
-          }}
-        >
-          <Text type="secondary" style={{ fontSize: 14 }}>
-            No fields defined yet
-          </Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            Click below to add your first field
-          </Text>
-        </div>
-      )}
-
-      <div style={{ marginBottom: 16 }}>
-        {nodes.map((node, index) => (
-          <NodeEditor
-            key={index}
-            node={node}
-            isRoot={true}
-            onChange={(updated) => updateRootNode(index, updated)}
-            onDelete={() => deleteRootNode(index)}
-          />
-        ))}
+      <div style={{ marginTop: 16, textAlign: 'right', borderTop: '1px solid #f0f0f0', paddingTop: 10 }}>
+        <Space>
+            <Text type="secondary" style={{fontSize: 12}}>
+               Select a Type to create a Field, or click (+) to create a Folder.
+            </Text>
+            <Button type="primary" icon={<SaveOutlined />} onClick={saveChanges}>
+            Save & Push to Device
+            </Button>
+        </Space>
       </div>
-
-      <Button
-        type="dashed"
-        icon={<PlusOutlined />}
-        onClick={addRootNode}
-        block
-        style={{ 
-          height: 40,
-          borderColor: "#1a73e8",
-          color: "#1a73e8",
-          fontWeight: 500,
-          borderRadius: 4
-        }}
-      >
-        Add Root Field
-      </Button>
     </div>
   );
 };
-
-// Helper Functions
-function convertToJson(nodes) {
-  const obj = {};
-
-  nodes.forEach((node) => {
-    if (!node.key) return;
-
-    if (node.children && node.children.length > 0) {
-      obj[node.key] = convertToJson(node.children);
-    } else if (node.type === "list") {
-      obj[node.key] = {
-        type: "list",
-        value: node.value || []
-      };
-    } else if (node.type) {
-      obj[node.key] = {
-        type: node.type,
-        value: parseValue(node.value, node.type),
-      };
-    }
-  });
-
-  return obj;
-}
-
-function parseValue(value, type) {
-  if (type === "int") return parseInt(value) || 0;
-  if (type === "float") return parseFloat(value) || 0.0;
-  if (type === "boolean") return value === "true";
-  if (type === "list") return Array.isArray(value) ? value : [];
-  if (type === "dict") return (typeof value === 'object' && value !== null) ? value : {};
-  return String(value);
-}
-
-function convertJsonToNode(key, valueObj) {
-  // Handle typed values (string, int, float, boolean, list, dict)
-  if (typeof valueObj === "object" && valueObj !== null && valueObj.type !== undefined) {
-    if (valueObj.type === "list") {
-      return {
-        key,
-        type: "list",
-        value: valueObj.value || [],
-        children: null,
-      };
-    }
-    if (valueObj.type === "dict") {
-      return {
-        key,
-        type: "dict",
-        value: valueObj.value || {},
-        children: null,
-      };
-    }
-    return {
-      key,
-      type: valueObj.type,
-      value: String(valueObj.value),
-      children: null,
-    };
-  }
-
-  // Handle nested objects (untyped dicts)
-  if (typeof valueObj === "object" && !Array.isArray(valueObj) && valueObj !== null) {
-    return {
-      key,
-      type: null,
-      value: null,
-      children: Object.keys(valueObj).map((k) =>
-        convertJsonToNode(k, valueObj[k])
-      ),
-    };
-  }
-
-  return { key, type: null, value: null, children: null };
-}
 
 export default JsonBuilderComponent;

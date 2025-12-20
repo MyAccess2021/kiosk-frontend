@@ -199,17 +199,19 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
         <div style={{ width: 60, marginLeft: 10, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s', flexShrink: 0 }}>
             <Space size={2}>
                 {!isIoTField && (
-                    <Tooltip title={isNeutral ? "Convert to Folder" : "Add Child"}>
+                    //title={isNeutral ? "Convert to Folder" : "Add Child"}
+                    <Tooltip >
                         <Button 
                             size="small" 
                             type="text" 
                             icon={isNeutral ? <FolderOutlined style={{color: '#1890ff'}} /> : <PlusOutlined style={{color: '#1890ff'}} />} 
                             onClick={handlePlusClick} 
                         />
-                    </Tooltip>
+                    </Tooltip>// title="Delete"
                 )}
-                <Tooltip title="Delete">
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} />
+                
+                <Tooltip> 
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} /> 
                 </Tooltip>
             </Space>
         </div>

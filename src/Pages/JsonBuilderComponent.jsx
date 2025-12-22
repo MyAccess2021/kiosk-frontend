@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Select, Space, Typography, Tooltip, Tag } from 'antd';
+import { Button, Input, Select, Space, Typography, Tooltip, Tag, theme } from 'antd';
 import { 
   PlusOutlined, 
   DeleteOutlined, 
@@ -15,6 +15,7 @@ const { Option } = Select;
 
 // --- RECURSIVE NODE COMPONENT ---
 const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
+  const { token } = theme.useToken();
   const [expanded, setExpanded] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -23,8 +24,6 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
   const isFolder = typeof data === 'object' && data !== null && !Array.isArray(data) && !isIoTField;
   const isList = Array.isArray(data);
   const isNeutral = !isIoTField && !isFolder && !isList;
-
-  // Check if the IoT Field holds complex data (Dict/List)
   const isComplexIoTValue = isIoTField && (data.type === 'dict' || data.type === 'list');
 
   const indentSize = 24; 
@@ -35,9 +34,8 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
       let defaultValue = "";
       if (type === 'int' || type === 'float') defaultValue = 0;
       if (type === 'boolean') defaultValue = false;
-      if (type === 'dict') defaultValue = {}; // Initialize as empty object
-      if (type === 'list') defaultValue = []; // Initialize as empty array
-      
+      if (type === 'dict') defaultValue = {}; 
+      if (type === 'list') defaultValue = []; 
       onUpdate({ type: type, value: defaultValue });
   };
 
@@ -71,7 +69,8 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
             alignItems: 'center', 
             padding: '6px 0', 
             paddingLeft: currentIndent,
-            backgroundColor: isHovered ? '#f9f9f9' : 'transparent',
+            // 🔥 Hover Color adapts to Dark/Light mode
+            backgroundColor: isHovered ? token.colorFillTertiary : 'transparent',
             borderRadius: 4,
             whiteSpace: 'nowrap'
         }}
@@ -85,7 +84,7 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                 left: currentIndent - 12,
                 top: 0,
                 bottom: 0,
-                borderLeft: '1px dashed #d9d9d9'
+                borderLeft: `1px dashed ${token.colorBorder}` // 🔥 Dark border support
             }} />
         )}
 
@@ -95,7 +94,7 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
             onClick={() => setExpanded(!expanded)}
         >
             {(isFolder || isList || isComplexIoTValue) && (
-                expanded ? <CaretDownOutlined style={{fontSize: 10, color: '#999'}} /> : <CaretRightOutlined style={{fontSize: 10, color: '#999'}} />
+                expanded ? <CaretDownOutlined style={{fontSize: 10, color: token.colorTextSecondary}} /> : <CaretRightOutlined style={{fontSize: 10, color: token.colorTextSecondary}} />
             )}
         </div>
 
@@ -110,8 +109,9 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                         style={{ 
                             width: 140, 
                             fontWeight: 600, 
-                            color: isIoTField ? '#52c41a' : '#1890ff', 
-                            border: isHovered ? '1px solid #d9d9d9' : '1px solid transparent', 
+                            // 🔥 Colors adapt to theme
+                            color: isIoTField ? token.colorSuccess : token.colorPrimary, 
+                            border: isHovered ? `1px solid ${token.colorBorder}` : '1px solid transparent', 
                             background: 'transparent',
                             marginRight: 4
                         }}
@@ -127,19 +127,21 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             
             {(isFolder || isList) && (
-                <Tag color={isList ? "orange" : "blue"} style={{fontSize: 10}}>
+                <Tag color={isList ? "orange" : "blue"} style={{fontSize: 10, margin: 0}}>
                     {isList ? 'List' : 'Folder'}
                 </Tag>
             )}
 
             {isIoTField && (
                 <>
-                    <Tag color="green" style={{fontSize: 10}}>Field</Tag>
+                    {/* Fixed Tag Backgrounds */}
+                    <Tag color="success" style={{fontSize: 10, margin: 0}}>Field</Tag>
                     <Select 
                         size="small" 
                         value={data.type} 
                         style={{width: 90}} 
                         onChange={(val) => handleTypeSelect(val)}
+                        dropdownStyle={{ backgroundColor: token.colorBgElevated }} // Dropdown bg fix
                     >
                         <Option value="string">string</Option>
                         <Option value="int">int</Option>
@@ -149,7 +151,6 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                         <Option value="list">list</Option>
                     </Select>
 
-                    {/* 🔥 FIX: If type is dict/list, SHOW TEXT instead of Input to avoid [object Object] */}
                     {isComplexIoTValue ? (
                         <Text type="secondary" style={{fontSize: 12}}>
                             {data.type === 'list' ? '[ ... ]' : '{ ... }'}
@@ -169,7 +170,7 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                             size="small"
                             value={data.value}
                             onChange={(e) => handleIoTValueChange(e.target.value)}
-                            style={{ width: 150 }}
+                            style={{ width: 150, color: token.colorText }} // Input Text Color Fix
                             placeholder="Value"
                         />
                     )}
@@ -199,19 +200,17 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
         <div style={{ width: 60, marginLeft: 10, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s', flexShrink: 0 }}>
             <Space size={2}>
                 {!isIoTField && (
-                    //title={isNeutral ? "Convert to Folder" : "Add Child"}
                     <Tooltip >
                         <Button 
                             size="small" 
                             type="text" 
-                            icon={isNeutral ? <FolderOutlined style={{color: '#1890ff'}} /> : <PlusOutlined style={{color: '#1890ff'}} />} 
+                            icon={isNeutral ? <FolderOutlined style={{color: token.colorPrimary}} /> : <PlusOutlined style={{color: token.colorPrimary}} />} 
                             onClick={handlePlusClick} 
                         />
-                    </Tooltip>// title="Delete"
+                    </Tooltip>
                 )}
-                
-                <Tooltip> 
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} /> 
+                <Tooltip >
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} />
                 </Tooltip>
             </Space>
         </div>
@@ -225,21 +224,19 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
                 left: currentIndent + 9, 
                 top: 0,
                 bottom: 12,
-                borderLeft: '1px dashed #d9d9d9',
+                borderLeft: `1px dashed ${token.colorBorder}`, // 🔥 Dark border support
                 zIndex: 0
             }} />
             
-            {/* If it's a Complex IoT Field, we need to iterate over its VALUE keys too */}
             {(isFolder || isList || isComplexIoTValue) && Object.entries(isComplexIoTValue ? data.value : data).map(([key, val], index) => (
                 <JsonNode 
                     key={index}
-                    name={isList ? null : key} // Don't show key name for Array items
+                    name={isList ? null : key} 
                     data={val}
                     depth={depth + 1}
                     onUpdate={(newVal) => {
                         let newData;
                         if (isComplexIoTValue) {
-                            // Update inside value object
                             const newValueObj = Array.isArray(data.value) ? [...data.value] : { ...data.value };
                             newValueObj[key] = newVal;
                             newData = { ...data, value: newValueObj };
@@ -290,6 +287,7 @@ const JsonNode = ({ name, data, depth = 0, onUpdate, onDelete, onRename }) => {
 
 // --- MAIN WRAPPER ---
 const JsonBuilderComponent = ({ jsonData, onChange }) => {
+  const { token } = theme.useToken(); // 🔥 Theme Access
   const [localJson, setLocalJson] = useState(jsonData || {});
 
   useEffect(() => {
@@ -309,25 +307,26 @@ const JsonBuilderComponent = ({ jsonData, onChange }) => {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       
       <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {/* <Text strong>Payload Structure</Text> */}
+          <Text strong style={{color: token.colorText}}>Payload Structure</Text>
           <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={handleRootAdd}>
               Add Root Field
           </Button>
       </div>
 
-      {/* Scrollable Container */}
+      {/* 🔥 Scrollable Container FIXED for Dark Mode */}
       <div style={{ 
           flex: 1,
           height: '400px', 
           overflow: 'auto', 
-          background: '#fff', 
-          border: '1px solid #d9d9d9', 
+          // 🔥 IMPORTANT: Use 'transparent' or 'colorBgLayout' to avoid White Box in Dark Mode
+          backgroundColor: token.colorFillQuaternary, 
+          border: `1px solid ${token.colorBorder}`, 
           padding: 16, 
           borderRadius: 4,
           fontFamily: 'monospace'
       }}>
         {Object.keys(localJson).length === 0 ? (
-            <div style={{textAlign:'center', marginTop: 150, color: '#ccc'}}>
+            <div style={{textAlign:'center', marginTop: 150, color: token.colorTextDescription}}>
                 <FileOutlined style={{fontSize: 24, marginBottom: 8}} />
                 <div>Empty Payload. Add fields to start.</div>
             </div>

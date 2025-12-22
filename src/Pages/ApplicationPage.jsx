@@ -1447,18 +1447,16 @@ const handleSaveDashboardConfig = async (config) => {
             </Form.Item>
 
             {/* 🔥 UPDATED: Payload Builder Embedded Directly */}
-            <Form.Item label="Payload Structure">
+              <Form.Item >
+              {/* Removed hardcoded background: '#fff' and border */}
               <div style={{ 
-                  border: '1px solid #d9d9d9', 
-                  borderRadius: 8, 
-                  padding: '12px', 
-                  backgroundColor: '#fff' 
+                  // No extra border/background needed here because the component has it
+                  width: '100%' 
               }}>
                 <JsonBuilderComponent
                   jsonData={payloadObj}
                   onChange={(updatedJson) => {
                     setPayloadObj(updatedJson);
-                    
                   }}
                 />
               </div>

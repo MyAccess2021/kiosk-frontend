@@ -317,7 +317,7 @@ const WidgetPreview = ({ component, payload, onValueChange, previewMode }) => {
              onTouchStart={(e) => e.stopPropagation()}
            >
                <Button type="primary" block size="small" icon={<PoweroffOutlined />} onClick={() => handleUserAction(!localValue)}>
-                 {localValue ? 'Turn OFF' : 'Turn ON'}
+                 {localValue ? 'Turn ON' : 'Turn OFF'}
                </Button>
            </div>
         </WidgetContainer>
@@ -499,6 +499,7 @@ const WidgetPreview = ({ component, payload, onValueChange, previewMode }) => {
             </WidgetContainer>
         );
 
+  // 🔥 LOG VIEWER (Fixed Sorting: Newest on Top)
     case 'log_viewer':
         return (
             <WidgetContainer>
@@ -516,7 +517,10 @@ const WidgetPreview = ({ component, payload, onValueChange, previewMode }) => {
                   }}
               >
                  {logs.length === 0 ? <div style={{opacity:0.5}}>Waiting for logs...</div> : 
-                   logs.map((log, idx) => (
+                   // 🔥 FIX: Ensure Sorting is DESCENDING (b.time - a.time)
+                   logs
+                   .sort((a, b) => b.time - a.time) 
+                   .map((log, idx) => (
                      <div key={idx} style={{marginBottom: 2, display:'flex', gap: 4, borderBottom: '1px solid #333'}}>
                          <span style={{opacity: 0.6, whiteSpace:'nowrap', color: '#888'}}>
                             {formatTime(log.time)}

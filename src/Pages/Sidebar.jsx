@@ -1,28 +1,18 @@
+// Sidebar.jsx
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  HomeOutlined,
-  EyeOutlined,
-  HddOutlined,
-  ThunderboltOutlined,
-  AppstoreOutlined,
-  SettingOutlined,
-  LogoutOutlined
+  HomeOutlined, EyeOutlined, ThunderboltOutlined,
+  AppstoreOutlined, SettingOutlined, LogoutOutlined
 } from '@ant-design/icons';
-import { buttonStyles } from '../utils/buttonStyles';
-import { themeConfig } from '../utils/themeConfig';
 
-const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
+const Sidebar = ({ isOpen, theme }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const colors = themeConfig[theme];
-  const menuBtn = buttonStyles.menu[theme];
-  const logoutBtn = buttonStyles.logout[theme];
 
   const menuItems = [
     { key: '/dashboard/home', icon: <HomeOutlined />, label: 'Home' },
     { key: '/dashboard/live-view', icon: <EyeOutlined />, label: 'Live View' },
-    // { key: '/dashboard/devices', icon: <HddOutlined />, label: 'Devices' },
     { key: '/dashboard/activity-log', icon: <ThunderboltOutlined />, label: 'Activity Log' },
     { key: '/dashboard/application', icon: <AppstoreOutlined />, label: 'Application' },
     { key: '/dashboard/config', icon: <SettingOutlined />, label: 'Config' },
@@ -33,167 +23,65 @@ const Sidebar = ({ isOpen, toggleSidebar, theme }) => {
     navigate('/login');
   };
 
-  const handleMenuClick = (path) => {
-    navigate(path);
-    // If on a mobile device, close the sidebar after clicking an item
-    if (window.innerWidth < 768) {
-      toggleSidebar();
-    }
-  };
-
-  return (
-    <>
-      {/* Floating Sidebar */}
-       
-        <div
-  style={{
-    position: 'fixed',
-    left: isOpen ? '24px' : '-100px', // Corrected this line for consistent alignment
-    top: window.innerWidth < 768 ? '88px' : '50%',
-    transform: window.innerWidth < 768 ? 'none' : 'translateY(-50%)',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '10px',
-          transition: 'left 0.3s ease-out, opacity 0.3s ease-out',
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? 'auto' : 'none',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          overflowX: 'visible',
-          paddingTop: '8px',
-          paddingBottom: '8px',
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none' // IE and Edge
-        }}
-        className="sidebar-scroll-hidden"
-      >
-        {menuItems.map((item, index) => (
-          <div
-            key={item.key}
-            style={{
-              animation: isOpen ? `waterfallIn 0.4s ease-out ${index * 0.08}s both` : 'none',
-              opacity: isOpen ? 1 : 0
-            }}
-          >
-            <div
-              onClick={() => handleMenuClick(item.key)}
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '16px',
-                backgroundColor: location.pathname === item.key
-                  ? menuBtn.activeBackgroundColor
-                  : menuBtn.backgroundColor,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: buttonStyles.common.transition,
-                boxShadow: location.pathname === item.key
-                  ? '0 4px 16px rgba(167, 139, 167, 0.4)'
-                  : colors.shadows.medium,
-                backdropFilter: 'blur(10px)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.backgroundColor = menuBtn.hoverBackgroundColor;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.backgroundColor = location.pathname === item.key
-                  ? menuBtn.activeBackgroundColor
-                  : menuBtn.backgroundColor;
-              }}
-            >
-              {React.cloneElement(item.icon, {
-                style: { fontSize: '22px', color: menuBtn.color }
-              })}
+ return (
+    <div style={{
+      position: 'fixed',
+      left: isOpen ? '24px' : '-120px',
+      //sidebar and navabar madhya gap
+      top: '140px',
+      zIndex: 1000,
+      width: '80px',
+      height: 'fit-content', // Height automatic ga content batti untundi
+      transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '20px 0', // Equal padding top and bottom
+      background: theme === 'dark' ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+      backdropFilter: 'blur(25px)',
+      borderRadius: '40px', // More rounded as per image
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      boxShadow: theme === 'dark' 
+        ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' 
+        : '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
+    }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {menuItems.map((item) => {
+          const isActive = location.pathname === item.key;
+          return (
+            <div key={item.key} onClick={() => navigate(item.key)} style={{ cursor: 'pointer', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {isActive && (
+                <div style={{ 
+                  position: 'absolute', left: '-12px', width: '5px', height: '28px', 
+                  background: '#10b981', borderRadius: '0 10px 10px 0', top: '11px',
+                  boxShadow: '0 0 15px rgba(16, 185, 129, 0.6)' 
+                }} />
+              )}
+              <div style={{
+                width: '52px', height: '52px', borderRadius: '18px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.3s',
+                background: isActive ? '#10b981' : 'transparent',
+                color: isActive ? '#fff' : (theme === 'dark' ? '#94a3b8' : '#64748b'),
+                boxShadow: isActive ? '0 8px 15px rgba(16, 185, 129, 0.3)' : 'none'
+              }}>
+                {React.cloneElement(item.icon, { style: { fontSize: '22px' } })}
+              </div>
             </div>
-            <div style={{
-              marginTop: '4px',
-              textAlign: 'center',
-              fontSize: '10px',
-              fontWeight: '500',
-              color: colors.text.primary,
-              textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '70px'
-            }}>
-              {item.label}
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
-        <div
-          style={{
-            marginTop: '6px',
-            animation: isOpen ? `waterfallIn 0.4s ease-out ${menuItems.length * 0.08}s both` : 'none',
-            opacity: isOpen ? 1 : 0
-          }}
-        >
-          <div
-            onClick={handleLogout}
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
-              backgroundColor: logoutBtn.backgroundColor,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: buttonStyles.common.transition,
-              boxShadow: colors.shadows.medium,
-              backdropFilter: 'blur(10px)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.backgroundColor = logoutBtn.hoverBackgroundColor;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.backgroundColor = logoutBtn.backgroundColor;
-            }}
-          >
-            <LogoutOutlined style={{ fontSize: '22px', color: logoutBtn.color }} />
-          </div>
-          <div style={{
-            marginTop: '4px',
-            textAlign: 'center',
-            fontSize: '10px',
-            fontWeight: '500',
-            color: colors.text.primary,
-            textShadow: theme === 'dark' ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none'
-          }}>
-            Logout
-          </div>
+        {/* Logout - No extra bottom gap, just the same gap as other items */}
+        <div onClick={handleLogout} style={{
+          width: '52px', height: '52px', borderRadius: '18px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#f43f5e', background: 'rgba(244, 63, 94, 0.08)', cursor: 'pointer',
+          marginTop: '8px'
+        }}>
+          <LogoutOutlined style={{ fontSize: '22px' }} />
         </div>
-
-        <style>{`
-          @keyframes waterfallIn {
-            from {
-              opacity: 0;
-              transform: translateX(-30px) translateY(-10px);
-            }
-            to {
-              opacity: 1;
-              transform: translateX(0) translateY(0);
-            }
-          }
-          
-          /* Hide scrollbar for Chrome, Safari and Opera */
-          .sidebar-scroll-hidden::-webkit-scrollbar {
-            display: none;
-          }
-        `}
-        </style>
       </div>
-    </>
+    </div>
   );
 };
-
 export default Sidebar;

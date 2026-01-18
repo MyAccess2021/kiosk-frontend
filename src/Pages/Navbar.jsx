@@ -1,174 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Avatar, Dropdown, Space } from 'antd';
-import {
-  MenuOutlined,
+// Navbar.jsx
+import React from 'react';
+import { Button, Avatar, Space, Typography, Dropdown } from 'antd'; // Dropdown add chesam
+import { 
+  SettingOutlined, 
+  UserOutlined, 
+  MoonOutlined, 
   SunOutlined,
-  MoonOutlined,
-  UserOutlined,
-  SettingOutlined,
-  LogoutOutlined
+  LogoutOutlined // Logout icon add chesam
 } from '@ant-design/icons';
-import { buttonStyles } from '../utils/buttonStyles';
-import { themeConfig } from '../utils/themeConfig';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-const Navbar = ({ toggleSidebar, theme, toggleTheme }) => {
+const { Text } = Typography;
+
+const Navbar = ({ theme, toggleTheme }) => {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user'));
-  const colors = themeConfig[theme];
-  const menuBtn = buttonStyles.menu[theme];
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const location = useLocation();
 
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
   };
 
+  // Dropdown menu items
   const menuItems = [
-   
     {
-      key: '2',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      onClick: () => navigate('/dashboard/config'),
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: '3',
-      icon: <LogoutOutlined />,
+      key: 'logout',
       label: 'Logout',
-      danger: true,
+      icon: <LogoutOutlined />,
+      danger: true, // Red color lo kanipistundi
       onClick: handleLogout,
     },
   ];
 
+  const navLinks = [
+    { label: 'Dashboard', path: '/dashboard/home' },
+    { label: 'Cameras', path: '/dashboard/live-view' },
+    { label: 'Applications', path: '/dashboard/application' },
+    { label: 'Activity', path: '/dashboard/activity-log' },
+  ];
+
   return (
-    <div
-      style={{
-        padding: '16px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between', // Changed to space-between
-        position: 'sticky',
-        top: 0,
-        zIndex: 998,
-        backgroundColor: 'transparent'
-      }}
-    >
-      {/* Menu Toggle Button */}
-      <Button
-        type="text"
-        icon={<MenuOutlined />}
-        onClick={toggleSidebar}
-        style={{
-          fontSize: '20px',
-          width: 56,
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '16px',
-          backgroundColor: menuBtn.backgroundColor,
-          backdropFilter: 'blur(10px)',
-          border: 'none',
-          color: menuBtn.color,
-          transition: buttonStyles.common.transition,
-          boxShadow: colors.shadows.large,
-          zIndex: 1001
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = menuBtn.hoverBackgroundColor;
-          e.currentTarget.style.transform = 'scale(1.05)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = menuBtn.backgroundColor;
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
-      />
+    <div style={{
+      padding: '20px 40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      background: 'transparent'
+    }}>
+      {/* Brand Logo Section */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        background: theme === 'dark' ? '#1a1c1e' : '#fff', 
+        padding: '10px 25px', 
+        borderRadius: '50px', 
+        boxShadow: '0 4px 15px rgba(0,0,0,0.05)' 
+      }}>
+        <Text strong style={{ fontSize: '18px', color: theme === 'dark' ? '#fff' : '#000' }}>MyAccess</Text>
+        <Text style={{ fontSize: '18px', color: '#10b981', fontWeight: '900', marginLeft: '2px' }}>Kiosk</Text>
+      </div>
 
-      {/* Right side actions */}
-      <Space size="middle">
-        <Button
-          type="text"
-          icon={theme === 'light' ? <MoonOutlined /> : <SunOutlined />}
-          onClick={toggleTheme}
-          style={{
-            fontSize: '18px',
-            width: 48,
-            height: 48,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '12px',
-            backgroundColor: colors.components.navbar.background,
-            backdropFilter: colors.components.navbar.backdropBlur,
-            border: 'none',
-            color: colors.text.primary,
-            transition: buttonStyles.common.transition,
-            boxShadow: colors.shadows.small
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = theme === 'light'
-              ? 'rgba(255, 255, 255, 0.8)'
-              : 'rgba(31, 41, 55, 0.8)';
-            e.currentTarget.style.transform = 'scale(1.05)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = colors.components.navbar.background;
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-        />
-
-        <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-          <div style={{
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '8px 16px',
-            borderRadius: '12px',
-            backgroundColor: colors.components.navbar.background,
-            backdropFilter: colors.components.navbar.backdropBlur,
-            transition: buttonStyles.common.transition,
-            boxShadow: colors.shadows.small
-          }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme === 'light'
-                ? 'rgba(255, 255, 255, 0.8)'
-                : 'rgba(31, 41, 55, 0.8)';
-              e.currentTarget.style.transform = 'scale(1.02)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = colors.components.navbar.background;
-              e.currentTarget.style.transform = 'scale(1)';
+      {/* Center Navigation */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '5px', 
+        background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.6)', 
+        padding: '5px', 
+        borderRadius: '50px', 
+        backdropFilter: 'blur(10px)' 
+      }}>
+        {navLinks.map(link => (
+          <Button 
+            key={link.path}
+            type="text"
+            onClick={() => navigate(link.path)}
+            style={{
+              borderRadius: '40px',
+              fontWeight: 600,
+              padding: '0 25px',
+              height: '40px',
+              backgroundColor: location.pathname === link.path 
+                ? (theme === 'dark' ? '#fff' : '#1e1e1e') 
+                : 'transparent',
+              color: location.pathname === link.path 
+                ? (theme === 'dark' ? '#000' : '#fff') 
+                : (theme === 'dark' ? '#9ca3af' : '#64748b'),
+              transition: 'all 0.3s'
             }}
           >
-            <Avatar
-              icon={<UserOutlined />}
-              style={{
-                backgroundColor: colors.brand.primary
-              }}
-            />
-            {!isMobile && (
-              <span style={{
-                fontWeight: 500,
-                color: colors.text.primary,
-              }}>
-                {user?.name || 'User'}
-              </span>
-            )}
-          </div>
+            {link.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Right Icons */}
+      <Space size="large">
+        <Button 
+          icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />} 
+          shape="circle" 
+          type="text" 
+          style={{ 
+            fontSize: '20px', 
+            color: theme === 'dark' ? '#facc15' : '#000000' 
+          }} 
+          onClick={toggleTheme} 
+        />
+
+        <Button 
+          icon={<SettingOutlined />} 
+          shape="circle" 
+          type="text" 
+          style={{ fontSize: '20px', color: theme === 'dark' ? '#fff' : '#000000' }} 
+          onClick={() => navigate('/dashboard/config')} 
+        />
+        
+        {/* Dropdown with Logout Option */}
+        <Dropdown menu={{ items: menuItems }} placement="bottomRight" arrow>
+          <Avatar 
+            size={45} 
+            icon={<UserOutlined />} 
+            style={{ 
+              cursor: 'pointer', 
+              border: theme === 'dark' ? '2px solid #333' : '2px solid #fff', 
+              boxShadow: '0 4px 10px rgba(0,0,0,0.1)' 
+            }} 
+          />
         </Dropdown>
       </Space>
     </div>

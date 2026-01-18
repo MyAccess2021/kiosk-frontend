@@ -11,6 +11,7 @@ import DevicesPage from './Pages/DevicesPage.jsx';
 import ActivityLogPage from './Pages/ActivityLogPage.jsx';
 import ConfigPage from './Pages/ConfigPage.jsx';
 import ApplicationPage from './Pages/ApplicationPage.jsx';
+import ClientDashboard from './Pages/ClientDashboard.jsx'; 
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('accessToken');
@@ -29,49 +30,15 @@ function App() {
   const antdThemeConfig = useMemo(() => ({
     algorithm: themeMode === 'light' ? antdTheme.defaultAlgorithm : antdTheme.darkAlgorithm,
     token: {
-      // Background colors from themeConfig
-      colorBgContainer: colors.background.primary,
-      colorBgElevated: colors.background.elevated,
-      colorBgLayout: colors.background.secondary,
-      colorBgBase: colors.background.primary,
-      
-      // Border colors
+      colorBgLayout: 'transparent',
+      colorBgContainer: colors.components.card.background,
       colorBorder: colors.border.primary,
-      colorBorderSecondary: colors.border.secondary,
-      
-      // Text colors
       colorText: colors.text.primary,
-      colorTextSecondary: colors.text.secondary,
-      colorTextTertiary: colors.text.tertiary,
-      
-      // Primary colors
-      colorPrimary: colors.brand.primary,
-      colorPrimaryHover: colors.brand.primaryHover,
-      
-      // Status colors
-      colorSuccess: colors.status.success,
-      colorError: colors.status.error,
-      colorWarning: colors.status.warning,
-      colorInfo: colors.status.info,
-      
-      // Component specific
-      colorBgSpotlight: colors.background.primary,
-      
-      // Border radius
-      borderRadius: 8,
     },
     components: {
       Layout: {
-        bodyBg: colors.background.secondary,
-        headerBg: colors.components.navbar.background,
-        siderBg: colors.components.sidebar.background,
-      },
-      Menu: {
-        itemBg: 'transparent',
-        itemSelectedBg: colors.components.sidebar.itemActive,
-        itemSelectedColor: colors.text.inverse,
-        itemHoverBg: colors.components.sidebar.itemHover,
-        itemActiveBg: colors.components.sidebar.itemActive,
+        bodyBg: 'transparent',
+        headerBg: 'transparent',
       },
       Card: {
         colorBgContainer: colors.components.card.background,
@@ -79,21 +46,6 @@ function App() {
       Table: {
         colorBgContainer: colors.components.table.background,
         headerBg: colors.components.table.headerBackground,
-        borderColor: colors.border.primary,
-      },
-      Input: {
-        colorBgContainer: colors.components.input.background,
-        colorBorder: colors.components.input.border,
-        activeBorderColor: colors.components.input.focus,
-        hoverBorderColor: colors.components.input.focus,
-      },
-      Modal: {
-        contentBg: colors.components.modal.background,
-        headerBg: colors.components.modal.background,
-      },
-      Button: {
-        colorPrimary: colors.brand.primary,
-        colorPrimaryHover: colors.brand.primaryHover,
       }
     }
   }), [themeMode, colors]);
@@ -102,13 +54,60 @@ function App() {
     setThemeMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
   };
 
+  // Gradient for body background - Pink left top + Subtle curved gold right
+  const bodyGradient = themeMode === 'dark'
+    ? `
+      radial-gradient(ellipse 100% 100% at 0% 0%, #2a2532 0%, rgba(34, 31, 42, 0.7) 40%, transparent 60%),
+      radial-gradient(ellipse 80% 120% at 100% 20%, #1c1828 0%, rgba(28, 24, 40, 0.4) 35%, transparent 65%),
+      linear-gradient(135deg, #1a1820 0%, #12111a 100%)
+    `
+    : `
+      radial-gradient(ellipse 100% 100% at 0% 0%, #FFF5F7 0%, rgba(255, 249, 245, 0.7) 40%, transparent 60%),
+      radial-gradient(ellipse 80% 120% at 100% 20%, #FFEFD5 0%, rgba(255, 245, 220, 0.4) 35%, transparent 65%),
+      linear-gradient(135deg, #FFFEF8 0%, #FFF9F0 100%)
+    `;
+
   return (
     <AntdConfigProvider theme={antdThemeConfig}>
-      <div style={{ 
-        backgroundColor: colors.background.secondary,
-        minHeight: '100vh',
-        color: colors.text.primary
-      }}>
+      <style>{`
+        .ant-layout { background: transparent !important; }
+        .ant-layout-header { background: transparent !important; }
+        
+        /* Body Background with Gradient */
+        body { 
+          margin: 0; 
+          background: ${bodyGradient} !important;
+          background-attachment: fixed !important;
+          transition: background 0.5s ease;
+        }
+
+        /* Scrollbar Styling */
+        ${themeMode === 'dark' ? `
+          ::-webkit-scrollbar { width: 10px; }
+          ::-webkit-scrollbar-track { background: #09090b; }
+          ::-webkit-scrollbar-thumb { 
+            background: #2C2C2E; 
+            border-radius: 5px;
+          }
+          ::-webkit-scrollbar-thumb:hover { background: #3C3C3E; }
+        ` : `
+          ::-webkit-scrollbar { width: 10px; }
+          ::-webkit-scrollbar-track { background: #FFF8E7; }
+          ::-webkit-scrollbar-thumb { 
+            background: #E5E0D3; 
+            border-radius: 5px;
+          }
+          ::-webkit-scrollbar-thumb:hover { background: #D5D0C3; }
+        `}
+
+        /* Card transparency support */
+        .ant-card {
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+      `}</style>
+      
+      <div style={{ background: 'transparent', minHeight: '100vh' }}>
         <Router>
           <Routes>
             <Route path="/login" element={<LoginPage theme={themeMode} />} />
@@ -122,6 +121,7 @@ function App() {
                 </ProtectedRoute>
               }
             >
+              <Route path="client-view/:appId" element={<ClientDashboard theme={themeMode} />} />
               <Route path="home" element={<HomePage theme={themeMode} />} />
               <Route path="live-view" element={<LiveViewPage theme={themeMode} />} />
               <Route path="devices" element={<DevicesPage theme={themeMode} />} />

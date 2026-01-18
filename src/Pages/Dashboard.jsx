@@ -1,93 +1,68 @@
-import React, { useState, useEffect } from 'react';
+// Dashboard.jsx
+import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar.jsx';
 import Navbar from './Navbar';
 
 const Dashboard = ({ theme, toggleTheme }) => {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isSidebarOpen, setSidebarOpen] = useState(!isMobile);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      // If we switch to mobile view, close the sidebar.
-      // If we switch to desktop, open it.
-      if (mobile) {
-        setSidebarOpen(false);
-      } else {
-        setSidebarOpen(true);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!isSidebarOpen);
-  };
+  // Light Theme: Soft Pink (left top) → Cream (center) → Subtle Gold (right - curved)
+  // Right side gold ni reduce chesi, curve effect tho natural ga blend
+  const lightGradient = `
+    radial-gradient(ellipse 100% 100% at 0% 0%, #FFF5F7 0%, rgba(255, 249, 245, 0.7) 40%, transparent 60%),
+    radial-gradient(ellipse 80% 120% at 100% 20%, #FFEFD5 0%, rgba(255, 245, 220, 0.4) 35%, transparent 65%),
+    linear-gradient(135deg, #FFFEF8 0%, #FFF9F0 100%)
+  `;
+  
+  // Dark Theme: Soft Purple (left top) → Medium (center) → Subtle dark (right - curved)
+  const darkGradient = `
+    radial-gradient(ellipse 100% 100% at 0% 0%, #2a2532 0%, rgba(34, 31, 42, 0.7) 40%, transparent 60%),
+    radial-gradient(ellipse 80% 120% at 100% 20%, #1c1828 0%, rgba(28, 24, 40, 0.4) 35%, transparent 65%),
+    linear-gradient(135deg, #1a1820 0%, #12111a 100%)
+  `;
+  
+  const gradientStyle = theme === 'dark' ? darkGradient : lightGradient;
 
   return (
     <div style={{
       minHeight: '100vh',
-      position: 'relative',
       display: 'flex',
-      transition: 'all 0.3s ease',
-      backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb'
+      flexDirection: 'column',
+      background: gradientStyle,
+      backgroundAttachment: 'fixed',
+      width: '100%',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-      {/* Background Overlay for Mobile */}
-      {isSidebarOpen && isMobile && (
-        <div
-          onClick={toggleSidebar}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 999, // zIndex should be below sidebar (1000) but above content
-            transition: 'opacity 0.3s ease',
-          }}
-        />
-      )}
-
-      <Sidebar
-        isOpen={isSidebarOpen}
-        toggleSidebar={toggleSidebar}
-        theme={theme}
-      />
-
+      {/* Right side gold glow - curved and subtle */}
       <div style={{
-        position: 'fixed',
+        position: 'absolute',
+        top: '5%',
+        right: 0,
+        width: '35%',
+        height: '50%',
+        background: theme === 'dark' 
+          ? 'radial-gradient(ellipse 70% 90% at 90% 30%, rgba(100, 80, 150, 0.08) 0%, transparent 60%)'
+          : 'radial-gradient(ellipse 70% 90% at 90% 30%, rgba(255, 230, 180, 0.15) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      
+      {/* Left top corner pink/purple glow */}
+      <div style={{
+        position: 'absolute',
         top: 0,
         left: 0,
-        right: 0,
-        zIndex: 999,
-        backgroundColor: 'transparent'
-      }}>
-        <Navbar
-          toggleSidebar={toggleSidebar}
-          theme={theme}
-          toggleTheme={toggleTheme}
-        />
-      </div>
-
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        width: '100%',
-        // Only apply margin on desktop view
-        marginLeft: isSidebarOpen && !isMobile ? '120px' : '0',
-        paddingLeft: '24px',
-        paddingRight: '24px',
-        marginTop: '88px',
-        transition: 'margin-left 0.3s ease',
-      }}>
-        <div style={{
-          flex: 1,
-          padding: '24px 0',
-        }}>
+        width: '40%',
+        height: '40%',
+        background: theme === 'dark' 
+          ? 'radial-gradient(circle at 0% 0%, rgba(147, 100, 200, 0.12) 0%, transparent 70%)'
+          : 'radial-gradient(circle at 0% 0%, rgba(255, 200, 220, 0.18) 0%, transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Navbar theme={theme} toggleTheme={toggleTheme} />
+        <div style={{ flex: 1, padding: '0 60px', background: 'transparent' }}>
           <Outlet />
         </div>
       </div>
